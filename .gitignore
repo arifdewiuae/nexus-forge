@@ -1,0 +1,25 @@
+node_modules
+.nuxt
+.output
+.data
+.env
+.env.local
+.cache
+dist
+
+# Logs
+logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
