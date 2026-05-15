@@ -21,6 +21,10 @@ import type { BoardAction } from '~/lib/ai/types'
 
 let stickyColorIndex = 0
 
+function isSticky(obj: FabricObject): obj is Textbox {
+  return (obj as FabricObject & { data?: { type?: string } }).data?.type === 'sticky'
+}
+
 function assignId(obj: FabricObject): void {
   obj.id = nanoid(8)
 }
@@ -40,6 +44,66 @@ export function useCanvas() {
   let shapeOrigin = new Point(0, 0)
   let activeShape: FabricObject | null = null
   let saveTimer: ReturnType<typeof setTimeout> | null = null
+
+  // ── Sticky note overlay editor ───────────────────────────────────────────────
+  // Sticky notes use a native <textarea> overlay instead of Fabric's built-in
+  // text editing to avoid Fabric's font-metrics cursor positioning bugs entirely.
+
+  const stickyEditor = reactive({
+    active: false,
+    text: '',
+    x: 0, y: 0,
+    width: 0, height: 0,
+    color: '#fef08a',
+  })
+  let stickyEditTarget: Textbox | null = null
+  let stickyOriginalText = ''
+
+  function openStickyEditor(canvas: Canvas, target: Textbox): void {
+    // Use getBoundingClientRect so coordinates are in real viewport pixels,
+    // regardless of how Fabric nests canvas elements inside its wrapper.
+    const canvasRect = canvas.getElement().getBoundingClientRect()
+    // getBoundingRect() returns the actual rendered box in viewport (canvas-element)
+    // coordinates — already accounts for originX/Y, zoom, pan, and scale.
+    const br = target.getBoundingRect()
+
+    stickyEditTarget   = target
+    stickyOriginalText = target.text
+    stickyEditor.text   = target.text === 'Double-click to edit' ? '' : target.text
+    stickyEditor.color  = (target.backgroundColor as string) || '#fef08a'
+    stickyEditor.x      = canvasRect.left + br.left
+    stickyEditor.y      = canvasRect.top  + br.top
+    stickyEditor.width  = br.width
+    stickyEditor.height = Math.max(br.height, 80)
+
+    target.set('opacity', 0)
+    canvas.discardActiveObject()
+    canvas.requestRenderAll()
+    stickyEditor.active = true
+  }
+
+  function commitStickyEdit(text: string): void {
+    if (!stickyEditor.active) return
+    stickyEditor.active = false
+    const target = stickyEditTarget
+    stickyEditTarget = null
+    if (!target) return
+    target.set({ text: text.trim() || 'Double-click to edit', opacity: 1 })
+    target.initDimensions()
+    const canvas = fc.value
+    if (canvas) { canvas.requestRenderAll(); scheduleSave(canvas) }
+    store.hasUnsavedChanges = true
+  }
+
+  function cancelStickyEdit(): void {
+    if (!stickyEditor.active) return
+    stickyEditor.active = false
+    const target = stickyEditTarget
+    stickyEditTarget = null
+    if (!target) return
+    target.set({ text: stickyOriginalText, opacity: 1 })
+    fc.value?.requestRenderAll()
+  }
 
   // ── Persistence ─────────────────────────────────────────────────────────────
 
@@ -70,9 +134,15 @@ export function useCanvas() {
   async function init(canvasEl: HTMLCanvasElement, container: HTMLElement, boardId: string): Promise<void> {
     currentBoardId = boardId
 
-    // Ensure font metrics are available before Fabric.js measures any text.
-    // Without this, cursor positions drift when the actual font differs from
-    // the fallback used during canvas initialization.
+    // Explicitly load Inter at every size used by canvas text so the char
+    // bounds cache is populated with the real font, not the fallback.
+    // document.fonts.ready alone isn't sufficient — it resolves as soon as
+    // the browser finishes loading fonts *referenced in CSS*, but Inter may
+    // not yet be available to the canvas 2D context at that moment.
+    await Promise.allSettled([
+      document.fonts.load('normal 13px Inter'),
+      document.fonts.load('normal 18px Inter'),
+    ])
     await document.fonts.ready
 
     const canvas = new Canvas(canvasEl, {
@@ -101,6 +171,11 @@ export function useCanvas() {
     canvas.on('object:added',    () => { store.hasUnsavedChanges = true; scheduleSave(canvas) })
     canvas.on('object:removed',  () => { store.hasUnsavedChanges = true; scheduleSave(canvas) })
 
+    canvas.on('mouse:dblclick', ({ target }: TPointerEventInfo<TPointerEvent>) => {
+      if (!target || !isSticky(target)) return
+      openStickyEditor(canvas, target)
+    })
+
     await restoreFromStorage(canvas)
   }
 
@@ -125,6 +200,10 @@ export function useCanvas() {
 
     const onKeydown = (event: KeyboardEvent): void => {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return
+      // Let Fabric handle all keys while a text object is being edited so
+      // shortcut characters (e, s, t, r, …) don't hijack keystrokes mid-word.
+      const active = canvas.getActiveObject() as { isEditing?: boolean } | null
+      if (active?.isEditing) return
 
       if (event.code === 'Space') {
         event.preventDefault()
@@ -223,21 +302,21 @@ export function useCanvas() {
   // ── Shape creation ──────────────────────────────────────────────────────────
 
   function bindShapeCreation(canvas: Canvas): void {
-    canvas.on('mouse:down', ({ pointer, target }: TPointerEventInfo<TPointerEvent> & { pointer?: Point; target?: FabricObject }) => {
-      if (!pointer || isPanning) return
+    canvas.on('mouse:down', ({ scenePoint, target }: TPointerEventInfo<TPointerEvent>) => {
+      if (!scenePoint || isPanning) return
       const tool = store.activeTool
       if (tool === 'select' || tool === 'draw') return
       if (target && tool !== 'rect' && tool !== 'ellipse' && tool !== 'arrow') return
 
-      if (tool === 'sticky') { addStickyNote(canvas, pointer); store.setTool('select'); return }
-      if (tool === 'text')   { addText(canvas, pointer);       store.setTool('select'); return }
+      if (tool === 'sticky') { addStickyNote(canvas, scenePoint); store.setTool('select'); return }
+      if (tool === 'text')   { addText(canvas, scenePoint);       store.setTool('select'); return }
 
       isDrawingShape = true
-      shapeOrigin = pointer
+      shapeOrigin = scenePoint
 
       if (tool === 'rect') {
         const shape = new Rect({
-          left: pointer.x, top: pointer.y, width: 1, height: 1,
+          left: scenePoint.x, top: scenePoint.y, width: 1, height: 1,
           fill: 'transparent', stroke: '#6366f1', strokeWidth: 2, rx: 4, ry: 4,
         })
         assignId(shape)
@@ -247,7 +326,7 @@ export function useCanvas() {
 
       if (tool === 'ellipse') {
         const shape = new Ellipse({
-          left: pointer.x, top: pointer.y, rx: 1, ry: 1,
+          left: scenePoint.x, top: scenePoint.y, rx: 1, ry: 1,
           fill: 'transparent', stroke: '#6366f1', strokeWidth: 2,
         })
         assignId(shape)
@@ -258,7 +337,7 @@ export function useCanvas() {
       if (tool === 'arrow') {
         // Fabric.js Line stores x1/y1/x2/y2 relative to the object center.
         // Initialize with a proper zero-length line so setCoords is clean.
-        const shape = new Line([pointer.x, pointer.y, pointer.x, pointer.y], {
+        const shape = new Line([scenePoint.x, scenePoint.y, scenePoint.x, scenePoint.y], {
           stroke: '#94a3b8', strokeWidth: 2, strokeLineCap: 'round',
           selectable: false, evented: false,
         })
@@ -268,16 +347,16 @@ export function useCanvas() {
       }
     })
 
-    canvas.on('mouse:move', ({ pointer }: TPointerEventInfo<TPointerEvent> & { pointer?: Point }) => {
-      if (!isDrawingShape || !activeShape || !pointer) return
-      const dx = pointer.x - shapeOrigin.x
-      const dy = pointer.y - shapeOrigin.y
+    canvas.on('mouse:move', ({ scenePoint }: TPointerEventInfo<TPointerEvent>) => {
+      if (!isDrawingShape || !activeShape || !scenePoint) return
+      const dx = scenePoint.x - shapeOrigin.x
+      const dy = scenePoint.y - shapeOrigin.y
       const tool = store.activeTool
 
       if (tool === 'rect' && activeShape instanceof Rect) {
         activeShape.set({
-          left:   dx > 0 ? shapeOrigin.x : pointer.x,
-          top:    dy > 0 ? shapeOrigin.y : pointer.y,
+          left:   dx > 0 ? shapeOrigin.x : scenePoint.x,
+          top:    dy > 0 ? shapeOrigin.y : scenePoint.y,
           width:  Math.abs(dx),
           height: Math.abs(dy),
         })
@@ -286,8 +365,8 @@ export function useCanvas() {
 
       if (tool === 'ellipse' && activeShape instanceof Ellipse) {
         activeShape.set({
-          left: dx > 0 ? shapeOrigin.x : pointer.x,
-          top:  dy > 0 ? shapeOrigin.y : pointer.y,
+          left: dx > 0 ? shapeOrigin.x : scenePoint.x,
+          top:  dy > 0 ? shapeOrigin.y : scenePoint.y,
           rx:   Math.abs(dx) / 2,
           ry:   Math.abs(dy) / 2,
         })
@@ -296,13 +375,13 @@ export function useCanvas() {
 
       if (tool === 'arrow' && activeShape instanceof Line) {
         // Fabric.js Line coords are relative to the object center — compute explicitly.
-        const cx = (shapeOrigin.x + pointer.x) / 2
-        const cy = (shapeOrigin.y + pointer.y) / 2
+        const cx = (shapeOrigin.x + scenePoint.x) / 2
+        const cy = (shapeOrigin.y + scenePoint.y) / 2
         activeShape.set({
           x1: shapeOrigin.x - cx,
           y1: shapeOrigin.y - cy,
-          x2: pointer.x    - cx,
-          y2: pointer.y    - cy,
+          x2: scenePoint.x  - cx,
+          y2: scenePoint.y  - cy,
           left:   cx,
           top:    cy,
           width:  Math.abs(dx),
@@ -346,14 +425,14 @@ export function useCanvas() {
       left: pointer.x - 90, top: pointer.y - 50, width: 180,
       backgroundColor: color, fill: '#1e293b',
       fontSize: 13, fontFamily: 'Inter, system-ui, sans-serif',
-      cursorColor: '#1e293b', cursorWidth: 2,
+      editable: false,
       shadow: new Shadow({ color: 'rgba(0,0,0,0.25)', blur: 12, offsetX: 2, offsetY: 4 }),
     })
     assignId(sticky)
     sticky.data = { type: 'sticky', stickyColor: color }
     canvas.add(sticky)
-    canvas.setActiveObject(sticky)
     canvas.renderAll()
+    openStickyEditor(canvas, sticky)
   }
 
   function addText(canvas: Canvas, pointer: Point): void {
@@ -432,5 +511,5 @@ export function useCanvas() {
     scheduleSave(fc.value)
   }
 
-  return { init, getSerializedBoard, exportPNG, exportJSON, clearBoard, resetZoom, applyBoardAction, applyAllBoardActions }
+  return { init, stickyEditor, commitStickyEdit, cancelStickyEdit, getSerializedBoard, exportPNG, exportJSON, clearBoard, resetZoom, applyBoardAction, applyAllBoardActions }
 }

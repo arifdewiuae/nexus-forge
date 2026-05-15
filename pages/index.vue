@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { nanoid } from 'nanoid'
 
+definePageMeta({ ssr: false })
+
 const boardId = nanoid(10)
 await navigateTo(`/board/${boardId}`, { replace: true })
 </script>

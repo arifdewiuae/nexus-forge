@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia'
+import { defineStore, skipHydrate } from 'pinia'
 import type { BoardAction, PresenceUser, AnalysisResult } from '~/lib/ai/types'
 
 export type CanvasTool = 'select' | 'draw' | 'rect' | 'ellipse' | 'sticky' | 'text' | 'arrow'
@@ -45,15 +45,15 @@ export const useBoardStore = defineStore('board', () => {
   }
 
   return {
-    activeTool,
-    isAnalyzing,
-    isTracePanelOpen,
-    streamingThinking,
-    suggestions,
-    analysisResult,
-    presenceUsers,
-    hasUnsavedChanges,
-    zoom,
+    activeTool:        skipHydrate(activeTool),
+    isAnalyzing:       skipHydrate(isAnalyzing),
+    isTracePanelOpen:  skipHydrate(isTracePanelOpen),
+    streamingThinking: skipHydrate(streamingThinking),
+    suggestions:       skipHydrate(suggestions),
+    analysisResult:    skipHydrate(analysisResult),
+    presenceUsers:     skipHydrate(presenceUsers),
+    hasUnsavedChanges: skipHydrate(hasUnsavedChanges),
+    zoom:              skipHydrate(zoom),
     setTool,
     openTracePanel,
     closeTracePanel,
