@@ -1,182 +1,199 @@
 <script setup lang="ts">
-import { Sparkles, Download, Link2, Check, Square } from 'lucide-vue-next'
-import Whiteboard from '~/components/Whiteboard.vue'
-import type { BoardAction } from '~/lib/ai/types'
-
 definePageMeta({ ssr: false })
 
-const route    = useRoute()
-const boardId  = computed(() => route.params.id as string)
-const store    = useBoardStore()
+const canvasRef = ref<{ zoomIn(): void; zoomOut(): void; fitView(): void; centerOn(id: string): void; startEdit(node: { id: string; label: string; x: number; y: number; parent: string | null }): void; zoomPct: number } | null>(null)
 
-const whiteboardRef = ref<InstanceType<typeof Whiteboard> | null>(null)
-const justCopied    = ref(false)
+const G = useMindMapStore()
 
+const modal = ref<{ open: boolean; mode: 'export' | 'import' | 'help' | null }>({ open: false, mode: null })
+function openModal(mode: 'export' | 'import' | 'help') { modal.value = { open: true, mode } }
+function closeModal() { modal.value = { open: false, mode: null } }
+
+const showAgentSelector = ref(false)
+
+/* ---- Theme init: apply stored accent color on mount ---- */
+onMounted(() => {
+  document.documentElement.style.setProperty('--accent', G.accentColor)
+
+  // Show agent selector on first visit if no agent chosen
+  if (!G.agentId) showAgentSelector.value = true
+})
+
+/* ---- Keyboard shortcuts ---- */
+function onKey(e: KeyboardEvent) {
+  const t = e.target as HTMLElement | null
+  const editable = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
+
+  if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'Z')) {
+    e.preventDefault()
+    if (e.shiftKey) G.redo(); else G.undo()
+    return
+  }
+
+  // ⌘↵ → analyze
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    e.preventDefault(); handleAnalyze(); return
+  }
+
+  if (e.key === 'Escape') {
+    if (modal.value.open) { closeModal(); return }
+    if (showAgentSelector.value) { showAgentSelector.value = false; return }
+    if (G.editingId) { G.editingId = null; return }
+    if (G.linkFromId) { G.linkFromId = null; return }
+    if (G.isAIPanelOpen) { G.closeAIPanel(); return }
+  }
+  if (editable) return
+
+  const toolMap: Record<string, 'select' | 'add' | 'link' | 'erase'> = { v: 'select', a: 'add', l: 'link', e: 'erase' }
+  const k = e.key.toLowerCase()
+  if (toolMap[k]) { G.tool = toolMap[k]; G.linkFromId = null; return }
+
+  if (e.key === 'Tab') {
+    e.preventDefault()
+    const sel = G.selectedId ?? G.rootNode()?.id
+    if (sel) {
+      G.addChild(sel, 'new idea')
+      nextTick(() => {
+        const node = G.nodeById(G.selectedId ?? '')
+        if (node) canvasRef.value?.startEdit(node)
+      })
+    }
+    return
+  }
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    const node = G.nodeById(G.selectedId ?? '')
+    if (node) canvasRef.value?.startEdit(node)
+    return
+  }
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    if (G.selectedId && G.selectedId !== G.rootNode()?.id) {
+      e.preventDefault(); G.deleteSubtree(G.selectedId)
+    }
+    return
+  }
+  if (k === 'f') { e.preventDefault(); canvasRef.value?.fitView(); return }
+}
+
+onMounted(() => window.addEventListener('keydown', onKey))
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
+
+/* ---- AI analysis ---- */
 const { analyze, abort } = useAIAnalysis()
 
-// ── Analyze ──────────────────────────────────────────────────────────────────
-
-async function handleAnalyze(): Promise<void> {
-  const board = whiteboardRef.value?.getSerializedBoard()
-  if (!board || board.objectCount === 0) return
-  await analyze(board)
+async function handleAnalyze() {
+  if (!G.activeAgent) { showAgentSelector.value = true; return }
+  G.openAIPanel()
+  await analyze()
 }
 
-function handleStop(): void {
-  abort()
+/* ---- Theme ---- */
+function onAccentChange(color: string) {
+  G.setAccent(color)
 }
-
-// ── Apply AI suggestion ──────────────────────────────────────────────────────
-
-async function handleApplyAction(action: BoardAction): Promise<void> {
-  await whiteboardRef.value?.applyBoardAction(action)
-}
-
-// ── Export ───────────────────────────────────────────────────────────────────
-
-function handleExportPNG(): void {
-  const dataUrl = whiteboardRef.value?.exportPNG()
-  if (!dataUrl) return
-  triggerDownload(dataUrl, `nexus-forge-${boardId.value}.png`)
-}
-
-function handleExportJSON(): void {
-  const json = whiteboardRef.value?.exportJSON()
-  if (!json) return
-  const blob = new Blob([json], { type: 'application/json' })
-  const url  = URL.createObjectURL(blob)
-  triggerDownload(url, `nexus-forge-${boardId.value}.json`)
-  URL.revokeObjectURL(url)
-}
-
-function triggerDownload(href: string, filename: string): void {
-  const a = document.createElement('a')
-  a.href = href
-  a.download = filename
-  a.click()
-}
-
-// ── Share link ────────────────────────────────────────────────────────────────
-
-async function copyBoardLink(): Promise<void> {
-  await navigator.clipboard.writeText(window.location.href)
-  justCopied.value = true
-  setTimeout(() => { justCopied.value = false }, 2000)
-}
-
-// ── Canvas ────────────────────────────────────────────────────────────────────
-
-function handleClear(): void     { whiteboardRef.value?.clearBoard() }
-function handleResetZoom(): void { whiteboardRef.value?.resetZoom() }
 </script>
 
 <template>
-  <div class="flex flex-col h-screen bg-slate-950 overflow-hidden">
+  <div id="app">
+    <ClientOnly>
+      <PaperBackground/>
+      <MindMapCanvas
+        ref="canvasRef"
+        @center-on="(id) => canvasRef?.centerOn(id)"
+      />
+      <MindMapHeader/>
+      <MindMapToolbar
+        @fit="canvasRef?.fitView()"
+        @export="openModal('export')"
+        @import="openModal('import')"
+        @help="openModal('help')"
+        @analyze="handleAnalyze"
+        @agent="showAgentSelector = true"
+      />
+      <MindMapSideNote
+        @center-on="(id) => canvasRef?.centerOn(id)"
+        @start-edit="(id) => { const n = G.nodeById(id); if(n) canvasRef?.startEdit(n) }"
+      />
 
-    <!-- ── Header ──────────────────────────────────────────────────────────── -->
-    <header class="flex items-center gap-3 px-4 h-12 border-b border-slate-800 shrink-0 bg-slate-950 z-20">
-
-      <!-- Logo -->
-      <div class="flex items-center gap-2 mr-2">
-        <div class="w-6 h-6 rounded bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center">
-          <span class="text-white text-[10px] font-bold select-none">NF</span>
-        </div>
-        <span class="text-sm font-semibold text-slate-200 tracking-tight">Nexus Forge</span>
+      <!-- Zoom readout -->
+      <div class="zoom-readout">
+        <button class="zoom-btn" @click="canvasRef?.zoomOut()" title="Zoom out">−</button>
+        <span class="zoom-pct">{{ canvasRef?.zoomPct ?? 100 }}%</span>
+        <button class="zoom-btn" @click="canvasRef?.zoomIn()" title="Zoom in">+</button>
+        <button class="zoom-btn" style="width:auto;padding:0 8px;font-size:18px" @click="canvasRef?.fitView()" title="Fit (F)">fit</button>
       </div>
 
-      <!-- Board ID / share link -->
-      <button
-        :aria-label="justCopied ? 'Link copied!' : 'Copy board link'"
-        :title="justCopied ? 'Copied!' : 'Copy board link'"
-        class="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors font-mono"
-        @click="copyBoardLink"
-      >
-        <component :is="justCopied ? Check : Link2" :size="12" :class="justCopied ? 'text-green-400' : ''" />
-        {{ boardId }}
-      </button>
-
-      <div class="flex-1" />
-
-      <!-- Presence — Phase 3 placeholder -->
-      <div class="flex items-center gap-1 mr-2" aria-label="Active collaborators">
-        <div class="w-6 h-6 rounded-full bg-violet-600 ring-2 ring-slate-950 text-[9px] text-white flex items-center justify-center font-medium select-none">
-          You
-        </div>
+      <!-- Keyboard hint -->
+      <div class="hint">
+        <span><kbd>tab</kbd> add child</span>
+        <span><kbd>enter</kbd> rename</span>
+        <span><kbd>del</kbd> delete</span>
+        <span><kbd>⌘Z</kbd> undo</span>
+        <span><kbd>⌘↵</kbd> ask AI</span>
+        <span><kbd>scroll</kbd> pan · <kbd>⌘</kbd>+<kbd>scroll</kbd> zoom</span>
       </div>
 
-      <!-- Analyze / Stop button -->
-      <button
-        :aria-label="store.isAnalyzing ? 'Stop analysis' : 'Analyze board with AI'"
-        :class="[
-          'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all',
-          store.isAnalyzing
-            ? 'bg-slate-700 hover:bg-slate-600 text-slate-300'
-            : 'bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-900/30',
-        ]"
-        @click="store.isAnalyzing ? handleStop() : handleAnalyze()"
-      >
-        <component
-          :is="store.isAnalyzing ? Square : Sparkles"
-          :size="14"
-          :class="store.isAnalyzing ? '' : ''"
-        />
-        {{ store.isAnalyzing ? 'Stop' : 'Analyze Board' }}
-      </button>
+      <!-- AI analysis panel -->
+      <AIPanel v-if="G.isAIPanelOpen" @close="G.closeAIPanel()"/>
 
-      <!-- Export dropdown -->
-      <div class="relative group">
-        <button
-          aria-label="Export board"
-          class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
-        >
-          <Download :size="14" />
-          Export
-        </button>
-        <div class="absolute right-0 top-full mt-1 w-36 bg-slate-800 border border-slate-700 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-30">
-          <button
-            class="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 hover:text-white rounded-t-lg transition-colors"
-            @click="handleExportPNG"
-          >
-            Export as PNG
-          </button>
-          <button
-            class="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 hover:text-white rounded-b-lg transition-colors"
-            @click="handleExportJSON"
-          >
-            Export as JSON
-          </button>
-        </div>
+      <!-- Agent selector overlay -->
+      <AgentSelector
+        v-if="showAgentSelector"
+        @close="showAgentSelector = false"
+        @select="showAgentSelector = false"
+      />
+
+      <!-- Theme color button (bottom-left, above hint) -->
+      <div class="theme-picker-row">
+        <span class="theme-picker-label">accent</span>
+        <input type="color" class="theme-color-input" :value="G.accentColor" @input="(e) => onAccentChange((e.target as HTMLInputElement).value)" title="Change accent color"/>
       </div>
-    </header>
 
-    <!-- ── Main ────────────────────────────────────────────────────────────── -->
-    <div class="flex flex-1 overflow-hidden">
-
-      <Toolbar :on-clear="handleClear" :on-reset-zoom="handleResetZoom" />
-
-      <main class="flex-1 relative overflow-hidden">
-        <Whiteboard ref="whiteboardRef" :board-id="boardId" class="w-full h-full" />
-
-        <!-- Empty state hint -->
-        <Transition name="fade">
-          <div
-            v-if="store.zoom === 1 && !store.hasUnsavedChanges"
-            class="pointer-events-none absolute inset-0 flex items-center justify-center"
-          >
-            <div class="text-center space-y-1.5">
-              <p class="text-slate-700 text-sm">Pick a tool and start drawing</p>
-              <p class="text-slate-800 text-xs">Space+drag to pan · Ctrl+Scroll to zoom</p>
-            </div>
-          </div>
-        </Transition>
-      </main>
-
-      <AITracePanel :on-apply-action="handleApplyAction" />
-    </div>
+      <!-- Modal -->
+      <MindMapModal
+        :open="modal.open"
+        :mode="modal.mode"
+        @close="closeModal"
+        @fit="canvasRef?.fitView()"
+      />
+    </ClientOnly>
   </div>
 </template>
 
 <style scoped>
-.fade-enter-active, .fade-leave-active { transition: opacity 0.4s ease; }
-.fade-enter-from, .fade-leave-to       { opacity: 0; }
+#app {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.theme-picker-row {
+  position: absolute;
+  bottom: 44px;
+  left: 110px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 6;
+}
+.theme-picker-label {
+  font-family: 'Caveat', cursive;
+  font-size: 18px;
+  color: var(--muted);
+}
+.theme-color-input {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1.5px solid var(--ink);
+  border-radius: 50%;
+  cursor: pointer;
+  background: none;
+  appearance: none;
+  -webkit-appearance: none;
+  overflow: hidden;
+}
+.theme-color-input::-webkit-color-swatch-wrapper { padding: 0; }
+.theme-color-input::-webkit-color-swatch { border: none; border-radius: 50%; }
 </style>
