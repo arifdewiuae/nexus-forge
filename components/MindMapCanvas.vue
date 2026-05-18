@@ -99,7 +99,7 @@
 
           <!-- Underline scribble for selected -->
           <g v-if="G.selectedId === node.id" filter="url(#wobble-soft)">
-            <path :d="`M ${-decorOf(node).w/2 + 14} ${decorOf(node).h/2 + 9} q 18 -4 36 1 t 36 -1 t 36 1 t 36 -1`"
+            <path :d="underlinePath(decorOf(node).w, decorOf(node).h)"
                   stroke="var(--accent)" stroke-width="2" fill="none" stroke-linecap="round"/>
           </g>
         </g>
@@ -173,15 +173,33 @@ function rotFor(id: string): number {
   return ((h % 9) - 4) * 0.7
 }
 
+// Approximate character width ratio for Kalam (handwriting font)
+const CHAR_W = 0.52
+
 function nodeSize(node: MindMapNode, level: number) {
   const label = node.label || ''
-  if (level === 0) return { w: 240, h: 96, fontSize: 42, radius: 30 }
-  if (level === 1) {
-    const w = Math.max(160, Math.min(320, Math.round(label.length * 18 + 40)))
-    return { w, h: 60, fontSize: 30, radius: 22 }
+  const len = Math.max(1, label.length)
+  if (level === 0) {
+    // Root: let width grow for long labels, then fit font to width
+    const w = Math.max(240, Math.min(400, Math.round(len * 14 + 60)))
+    const fontSize = Math.min(42, Math.max(18, Math.floor((w - 40) / (len * CHAR_W))))
+    return { w, h: 96, fontSize, radius: 30 }
   }
-  const w = Math.max(130, Math.min(280, Math.round(label.length * 14 + 34)))
-  return { w, h: 48, fontSize: 22, radius: 18 }
+  if (level === 1) {
+    const w = Math.max(160, Math.min(320, Math.round(len * 18 + 40)))
+    const fontSize = Math.min(30, Math.max(14, Math.floor((w - 34) / (len * CHAR_W))))
+    return { w, h: 60, fontSize, radius: 22 }
+  }
+  const w = Math.max(130, Math.min(280, Math.round(len * 14 + 34)))
+  const fontSize = Math.min(22, Math.max(12, Math.floor((w - 28) / (len * CHAR_W))))
+  return { w, h: 48, fontSize, radius: 18 }
+}
+
+function underlinePath(w: number, h: number): string {
+  const seg = Math.round(Math.max(28, Math.min(48, (w - 20) / 4)))
+  const x0 = -(seg * 4) / 2
+  const y0 = h / 2 + 9
+  return `M ${x0} ${y0} q ${seg * 0.5} -4 ${seg} 1 t ${seg} -1 t ${seg} 1 t ${seg} -1`
 }
 
 function sketchRectPath(x: number, y: number, w: number, h: number, r: number, j: number): string {

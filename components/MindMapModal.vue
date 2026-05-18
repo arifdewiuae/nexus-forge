@@ -27,6 +27,16 @@
         </div>
       </template>
 
+      <!-- Confirm reset -->
+      <template v-else-if="mode === 'confirm'">
+        <h2>clear the board?</h2>
+        <p>this will erase everything and start fresh. undo won't work after this.</p>
+        <div class="modal-actions">
+          <button class="modal-action" @click="emit('close')">cancel</button>
+          <button class="modal-action danger" @click="emit('confirm'); emit('close')">yes, clear it</button>
+        </div>
+      </template>
+
       <!-- Help -->
       <template v-else-if="mode === 'help'">
         <h2>quick tour</h2>
@@ -53,8 +63,8 @@
 import { ref, watch, nextTick } from 'vue'
 import { useMindMapStore } from '~/stores/mindMapStore'
 
-const props = defineProps<{ open: boolean; mode: 'export' | 'import' | 'help' | null }>()
-const emit = defineEmits<{ close: []; fit: [] }>()
+const props = defineProps<{ open: boolean; mode: 'export' | 'import' | 'help' | 'confirm' | null }>()
+const emit = defineEmits<{ close: []; fit: []; confirm: [] }>()
 const G = useMindMapStore()
 
 const text = ref('')

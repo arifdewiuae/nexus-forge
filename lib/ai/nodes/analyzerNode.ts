@@ -1,17 +1,17 @@
 import type OpenAI from 'openai'
-import type { SerializedBoard } from '~/lib/ai/types'
+import type { SerializedGraph, AgentPersona } from '~/lib/ai/types'
 
-const SYSTEM_PROMPT = `\
-You are an expert visual information architect specializing in collaborative whiteboards.
+const BASE_SYSTEM = `\
+You are analyzing a handwritten mind map. Given a JSON snapshot of the graph, write a focused, opinionated analysis that helps the user understand and improve their thinking.
 
-Given a JSON snapshot of a whiteboard (objects with positions, types, and text content), analyze:
-1. **Clusters** — groups of objects that belong together by meaning or spatial proximity
-2. **Orphans** — isolated objects that should be connected or labeled
-3. **Missing structure** — groupings, labels, or connections that would add clarity
-4. **Layout quality** — whether positions communicate priority, flow, or hierarchy
-5. **Key themes** — the main topics or patterns you observe
+Structure your response with these sections (use **bold** for headers):
 
-Reference objects by their ID when useful. Be concise and specific — 3 to 5 short paragraphs max.`
+**What this is about** — One sentence: what central idea or problem does this map explore?
+**Structure & gaps** — Which nodes are isolated (no children, no parent except root)? Which branches are suspiciously thin or dense? Name specific labels.
+**Hidden connections** — Spot 1–2 nodes that should be linked but aren't.
+**Next moves** — The 2–3 highest-leverage actions: add a missing node, rename a vague label, connect two related nodes.
+
+Be specific. Name actual node labels. No generic advice. 4 paragraphs max.`
 
 export interface AnalyzerResult {
   analysis: string
@@ -21,12 +21,26 @@ export interface AnalyzerResult {
 
 export async function runAnalyzerNode(
   client: OpenAI,
-  board: SerializedBoard,
+  graph: SerializedGraph,
+  agent: AgentPersona | null,
+  userPrompt: string,
   onChunk: (text: string) => void,
   model: string,
   maxTokens: number,
   temperature: number,
 ): Promise<AnalyzerResult> {
+  const systemPrompt = agent
+    ? `You are ${agent.name}. ${agent.personality}\n\n${BASE_SYSTEM}\n\nVoice rules: ${agent.voiceRules}`
+    : BASE_SYSTEM
+
+  const promptContext = userPrompt.trim()
+    ? `The user shared these thoughts:\n"${userPrompt.trim()}"\n\nUse this as the primary context for your analysis. If the map is sparse or empty, suggest nodes and structure that reflect what the user described.\n\n`
+    : ''
+
+  const mapDescription = graph.nodeCount > 0
+    ? `Analyze this mind map titled "${graph.title}" with ${graph.nodeCount} nodes:\n\n${JSON.stringify(graph.nodes, null, 2)}`
+    : `The mind map is currently empty (just a root titled "${graph.title}"). Base your suggestions entirely on the user's thoughts above.`
+
   const stream = await client.chat.completions.create({
     model,
     max_tokens: maxTokens,
@@ -34,10 +48,10 @@ export async function runAnalyzerNode(
     stream: true,
     stream_options: { include_usage: true },
     messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: systemPrompt },
       {
         role: 'user',
-        content: `Analyze this whiteboard with ${board.objectCount} objects:\n\n${JSON.stringify(board.objects, null, 2)}`,
+        content: `${promptContext}${mapDescription}`,
       },
     ],
   })
@@ -48,12 +62,9 @@ export async function runAnalyzerNode(
 
   for await (const chunk of stream) {
     const text = chunk.choices[0]?.delta?.content ?? ''
-    if (text) {
-      analysis += text
-      onChunk(text)
-    }
+    if (text) { analysis += text; onChunk(text) }
     if (chunk.usage) {
-      inputTokens = chunk.usage.prompt_tokens ?? 0
+      inputTokens  = chunk.usage.prompt_tokens     ?? 0
       outputTokens = chunk.usage.completion_tokens ?? 0
     }
   }

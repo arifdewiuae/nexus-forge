@@ -2,14 +2,33 @@
 definePageMeta({ ssr: false })
 
 const canvasRef = ref<{ zoomIn(): void; zoomOut(): void; fitView(): void; centerOn(id: string): void; startEdit(node: { id: string; label: string; x: number; y: number; parent: string | null }): void; zoomPct: number } | null>(null)
+const toolbarRef = ref<{ aiBtn: HTMLButtonElement | null } | null>(null)
 
 const G = useMindMapStore()
 
-const modal = ref<{ open: boolean; mode: 'export' | 'import' | 'help' | null }>({ open: false, mode: null })
-function openModal(mode: 'export' | 'import' | 'help') { modal.value = { open: true, mode } }
+const modal = ref<{ open: boolean; mode: 'export' | 'import' | 'help' | 'confirm' | null }>({ open: false, mode: null })
+function openModal(mode: 'export' | 'import' | 'help' | 'confirm') { modal.value = { open: true, mode } }
 function closeModal() { modal.value = { open: false, mode: null } }
 
+function handleConfirmedReset() {
+  G.reset()
+  G.clearAnalysis()
+}
+
 const showAgentSelector = ref(false)
+
+/* ---- Panel anchor position (near Ask AI button) ---- */
+const panelAnchor = ref({ x: 110, y: 144 })
+
+function computePanelAnchor() {
+  const btn = toolbarRef.value?.aiBtn
+  if (!btn) return
+  const r = btn.getBoundingClientRect()
+  panelAnchor.value = {
+    x: Math.max(8, r.left),
+    y: r.bottom + 10,
+  }
+}
 
 /* ---- Theme init: apply stored accent color on mount ---- */
 onMounted(() => {
@@ -40,7 +59,7 @@ function onKey(e: KeyboardEvent) {
     if (showAgentSelector.value) { showAgentSelector.value = false; return }
     if (G.editingId) { G.editingId = null; return }
     if (G.linkFromId) { G.linkFromId = null; return }
-    if (G.isAIPanelOpen) { G.closeAIPanel(); return }
+    if (G.isAIPanelOpen) { handleCloseAIPanel(); return }
   }
   if (editable) return
 
@@ -83,8 +102,18 @@ const { analyze, abort } = useAIAnalysis()
 
 async function handleAnalyze() {
   if (!G.activeAgent) { showAgentSelector.value = true; return }
+  computePanelAnchor()
   G.openAIPanel()
+}
+
+async function handleForceAnalyze() {
+  G.clearAnalysis()
   await analyze()
+}
+
+function handleCloseAIPanel() {
+  abort()
+  G.closeAIPanel()
 }
 
 /* ---- Theme ---- */
@@ -103,12 +132,14 @@ function onAccentChange(color: string) {
       />
       <MindMapHeader/>
       <MindMapToolbar
+        ref="toolbarRef"
         @fit="canvasRef?.fitView()"
         @export="openModal('export')"
         @import="openModal('import')"
         @help="openModal('help')"
         @analyze="handleAnalyze"
         @agent="showAgentSelector = true"
+        @reset="openModal('confirm')"
       />
       <MindMapSideNote
         @center-on="(id) => canvasRef?.centerOn(id)"
@@ -134,7 +165,13 @@ function onAccentChange(color: string) {
       </div>
 
       <!-- AI analysis panel -->
-      <AIPanel v-if="G.isAIPanelOpen" @close="G.closeAIPanel()"/>
+      <AIPanel
+        v-if="G.isAIPanelOpen"
+        :initialX="panelAnchor.x"
+        :initialY="panelAnchor.y"
+        @close="handleCloseAIPanel"
+        @analyze="handleForceAnalyze"
+      />
 
       <!-- Agent selector overlay -->
       <AgentSelector
@@ -155,6 +192,7 @@ function onAccentChange(color: string) {
         :mode="modal.mode"
         @close="closeModal"
         @fit="canvasRef?.fitView()"
+        @confirm="handleConfirmedReset"
       />
     </ClientOnly>
   </div>

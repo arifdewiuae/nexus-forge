@@ -39,7 +39,7 @@
     <span class="tool-divider"></span>
 
     <!-- AI button -->
-    <button class="tool-chip" :class="{ active: G.isAIPanelOpen }"
+    <button ref="aiBtn" class="tool-chip" :class="{ active: G.isAIPanelOpen }"
             :disabled="G.isAnalyzing"
             @click="emit('analyze')"
             title="Ask AI to analyze your mind map (⌘↵)">
@@ -67,6 +67,7 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useMindMapStore } from '~/stores/mindMapStore'
 
 const G = useMindMapStore()
@@ -78,7 +79,11 @@ const emit = defineEmits<{
   help: []
   analyze: []
   agent: []
+  reset: []
 }>()
+
+const aiBtn = ref<HTMLButtonElement | null>(null)
+defineExpose({ aiBtn })
 
 const TOOL_BLOB = 'M 8 4 Q 60 1, 112 5 Q 116 17, 110 30 Q 60 33, 6 28 Q 3 14, 8 4 Z'
 
@@ -94,6 +99,6 @@ function setTool(id: 'select' | 'add' | 'link' | 'erase') {
 }
 
 function doReset() {
-  if (confirm('Clear the board and start fresh?')) G.reset()
+  emit('reset')
 }
 </script>

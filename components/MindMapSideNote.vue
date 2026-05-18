@@ -1,20 +1,27 @@
 <template>
-  <aside class="side-note" v-if="selected">
+  <aside class="side-note" v-if="selected" :class="{ 'sheet-collapsed': sheetCollapsed }">
     <div class="side-note-card" ref="cardEl">
-      <svg class="side-note-card-bg" preserveAspectRatio="none" viewBox="0 0 268 320">
+      <!-- Mobile bottom-sheet handle (tap to expand/collapse) -->
+      <button class="sheet-handle" @click="sheetCollapsed = !sheetCollapsed" aria-label="Toggle details">
+        <span class="sheet-handle-bar"></span>
+        <span class="sheet-handle-label">{{ selected.label }}</span>
+        <span class="sheet-handle-arrow">{{ sheetCollapsed ? '▲' : '▼' }}</span>
+      </button>
+      <svg class="side-note-card-bg" preserveAspectRatio="none" :viewBox="`0 0 ${cardSize.w} ${cardSize.h}`">
         <path :d="cardPath" filter="url(#wobble)"/>
       </svg>
       <div class="side-note-content">
         <div class="side-label-row">
-          <input v-if="editingLabel"
-                 ref="labelInput"
+          <input ref="labelInput"
                  class="side-label"
+                 :class="{ 'side-label--editing': editingLabel }"
                  v-model="draft"
-                 @blur="commitLabel"
-                 @keydown="onLabelKey"
+                 :readonly="!editingLabel"
+                 @blur="editingLabel && commitLabel()"
+                 @keydown="editingLabel && onLabelKey($event)"
+                 @dblclick="startLabelEdit"
                  maxlength="120"/>
-          <div v-else class="side-label" @dblclick="startLabelEdit">{{ selected.label }}</div>
-          <button class="side-pencil" @click="startLabelEdit" title="Edit label">✎</button>
+          <button class="side-pencil" @mousedown.prevent @click="editingLabel ? commitLabel() : startLabelEdit()" :title="editingLabel ? 'Save' : 'Edit label'">{{ editingLabel ? '✓' : '✎' }}</button>
         </div>
         <div class="side-breadcrumb">
           <template v-if="ancestors.length">
@@ -52,7 +59,8 @@ const emit = defineEmits<{ centerOn: [id: string]; startEdit: [id: string] }>()
 
 const labelInput = ref<HTMLInputElement | null>(null)
 const editingLabel = ref(false)
-const draft = ref('')
+const draft = ref(G.nodeById(G.selectedId ?? '')?.label ?? '')
+const sheetCollapsed = ref(false)
 const cardEl = ref<HTMLElement | null>(null)
 const cardSize = ref({ w: 268, h: 320 })
 
@@ -72,7 +80,13 @@ function startLabelEdit() {
   if (!selected.value) return
   draft.value = selected.value.label
   editingLabel.value = true
-  nextTick(() => { labelInput.value?.focus(); labelInput.value?.select() })
+  nextTick(() => {
+    const el = labelInput.value
+    if (!el) return
+    el.focus()
+    const len = el.value.length
+    el.setSelectionRange(len, len)
+  })
 }
 
 function commitLabel() {
@@ -110,6 +124,10 @@ function measureCard() {
 
 onMounted(() => { measureCard(); window.addEventListener('resize', measureCard) })
 onBeforeUnmount(() => window.removeEventListener('resize', measureCard))
+watch(selected, (node) => {
+  sheetCollapsed.value = false
+  if (!editingLabel.value) draft.value = node?.label ?? ''
+})
 watch([selected, children], () => nextTick(measureCard))
 
 const cardPath = computed(() => {

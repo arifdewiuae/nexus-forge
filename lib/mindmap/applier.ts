@@ -3,8 +3,10 @@ import type { MindMapAction } from '~/lib/ai/types'
 interface GraphStore {
   nodeById(id: string): { id: string; x: number; y: number; label: string; parent: string | null } | null
   selectedId: string | null
+  editingId: string | null
   addNodeAt(parentId: string, x: number, y: number, label: string): string
   addChild(parentId: string, label: string): string | null
+  addCrossLink(fromId: string, toId: string): void
   reparent(childId: string, newParentId: string): boolean
   setLabel(id: string, label: string): void
   setHighlighted(ids: string[]): void
@@ -23,7 +25,7 @@ export function applyAction(store: GraphStore, action: MindMapAction): void {
     }
 
     case 'link_nodes': {
-      store.reparent(action.toId, action.fromId)
+      store.addCrossLink(action.fromId, action.toId)
       break
     }
 
@@ -45,6 +47,8 @@ export function applyAction(store: GraphStore, action: MindMapAction): void {
       for (const child of action.children) {
         store.addChild(action.parentId, child.label)
       }
+      // addChild triggers editingId on each call; clear it so no node auto-enters edit mode
+      store.editingId = null
       break
     }
   }

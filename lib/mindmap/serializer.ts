@@ -1,4 +1,4 @@
-import type { MindMapNode, SerializedGraph, SerializedNode } from '~/lib/ai/types'
+import type { MindMapNode, CrossLink, SerializedGraph, SerializedNode } from '~/lib/ai/types'
 
 function ancestorsOf(nodes: MindMapNode[], id: string): MindMapNode[] {
   const out: MindMapNode[] = []
@@ -15,7 +15,8 @@ function ancestorsOf(nodes: MindMapNode[], id: string): MindMapNode[] {
 
 export function serializeGraph(
   nodes: MindMapNode[],
-  title: string
+  title: string,
+  crossLinks: CrossLink[] = [],
 ): SerializedGraph {
   const serialized: SerializedNode[] = nodes.map(n => {
     const childCount = nodes.filter(c => c.parent === n.id).length
@@ -35,5 +36,8 @@ export function serializeGraph(
     title,
     nodeCount: nodes.length,
     nodes: serialized,
+    ...(crossLinks.length > 0 && {
+      links: crossLinks.map(l => ({ fromId: l.fromId, toId: l.toId })),
+    }),
   }
 }

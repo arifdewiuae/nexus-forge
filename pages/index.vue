@@ -8,10 +8,7 @@ await navigateTo(`/board/${boardId}`, { replace: true })
 </script>
 
 <template>
-  <div class="flex items-center justify-center h-screen bg-slate-950">
-    <div class="flex items-center gap-3 text-slate-500">
-      <div class="w-4 h-4 rounded-full bg-violet-600 animate-pulse" />
-      <span class="text-sm">Creating board…</span>
-    </div>
+  <div style="display:flex;align-items:center;justify-content:center;height:100vh;background:var(--paper)">
+    <span style="font-family:'Caveat',cursive;font-size:28px;color:var(--muted)">opening your map…</span>
   </div>
 </template>

@@ -3,7 +3,7 @@
    port of design/mindmap-app/graph.js) + AI analysis state
    ========================================================= */
 import { defineStore, skipHydrate } from 'pinia'
-import type { MindMapNode, MindMapAction, AnalysisResult, AgentPersona } from '~/lib/ai/types'
+import type { MindMapNode, CrossLink, MindMapAction, AnalysisResult, AgentPersona } from '~/lib/ai/types'
 import { AGENTS } from '~/lib/ai/types'
 
 const STORAGE_KEY = 'handwritten-mindmap-v1'
@@ -60,9 +60,10 @@ export const useMindMapStore = defineStore('mindMap', () => {
   const initial = loadInitial()
 
   /* ---- graph state ---- */
-  const title     = ref(initial.title)
-  const nextId    = ref(initial.nextId)
-  const nodes     = ref<MindMapNode[]>(initial.nodes)
+  const title      = ref(initial.title)
+  const nextId     = ref(initial.nextId)
+  const nodes      = ref<MindMapNode[]>(initial.nodes)
+  const crossLinks = ref<CrossLink[]>([])
   const selectedId = ref<string | null>(initial.nodes.find(n => n.parent === null)?.id ?? initial.nodes[0]?.id ?? null)
   const linkFromId = ref<string | null>(null)
   const tool       = ref<'select' | 'add' | 'link' | 'erase'>('select')
@@ -70,27 +71,28 @@ export const useMindMapStore = defineStore('mindMap', () => {
   const saveStatus = ref<'idle' | 'saving' | 'saved'>('saved')
 
   /* ---- undo / redo ---- */
-  const past: string[]   = []
-  const future: string[] = []
+  const past   = ref<string[]>([])
+  const future  = ref<string[]>([])
 
   function snapshot(): string {
-    return JSON.stringify({ title: title.value, nextId: nextId.value, nodes: nodes.value })
+    return JSON.stringify({ title: title.value, nextId: nextId.value, nodes: nodes.value, crossLinks: crossLinks.value })
   }
   function applySnapshot(s: string) {
     const p = JSON.parse(s)
-    title.value   = p.title
-    nextId.value  = p.nextId
+    title.value  = p.title
+    nextId.value = p.nextId
     nodes.value.splice(0, nodes.value.length, ...p.nodes)
+    crossLinks.value.splice(0, crossLinks.value.length, ...(p.crossLinks ?? []))
   }
   function pushHistory() {
-    past.push(snapshot())
-    if (past.length > HISTORY_LIMIT) past.shift()
-    future.length = 0
+    past.value.push(snapshot())
+    if (past.value.length > HISTORY_LIMIT) past.value.shift()
+    future.value.length = 0
   }
-  function undo() { if (!past.length) return; future.push(snapshot()); applySnapshot(past.pop()!) }
-  function redo() { if (!future.length) return; past.push(snapshot()); applySnapshot(future.pop()!) }
-  const canUndo = computed(() => past.length > 0)
-  const canRedo = computed(() => future.length > 0)
+  function undo() { if (!past.value.length) return; future.value.push(snapshot()); applySnapshot(past.value.pop()!) }
+  function redo() { if (!future.value.length) return; past.value.push(snapshot()); applySnapshot(future.value.pop()!) }
+  const canUndo = computed(() => past.value.length > 0)
+  const canRedo = computed(() => future.value.length > 0)
 
   /* ---- persistence ---- */
   let saveTimer: ReturnType<typeof setTimeout> | null = null
@@ -223,9 +225,9 @@ export const useMindMapStore = defineStore('mindMap', () => {
   function beginDrag() { _dragSnapshot = snapshot() }
   function endDrag(committed: boolean) {
     if (committed && _dragSnapshot) {
-      past.push(_dragSnapshot)
-      if (past.length > HISTORY_LIMIT) past.shift()
-      future.length = 0
+      past.value.push(_dragSnapshot)
+      if (past.value.length > HISTORY_LIMIT) past.value.shift()
+      future.value.length = 0
     }
     _dragSnapshot = null
   }
@@ -262,6 +264,7 @@ export const useMindMapStore = defineStore('mindMap', () => {
     selectedId.value = rootNode()?.id ?? null
     editingId.value  = null
     linkFromId.value = null
+    crossLinks.value.splice(0, crossLinks.value.length)
   }
 
   function exportJSON(): string {
@@ -298,17 +301,37 @@ export const useMindMapStore = defineStore('mindMap', () => {
     }
   }
 
+  /* ---- cross-links (non-tree AI-suggested associations) ---- */
+  function addCrossLink(fromId: string, toId: string) {
+    if (!nodeById(fromId) || !nodeById(toId)) return
+    if (crossLinks.value.some(l => l.fromId === fromId && l.toId === toId)) return
+    pushHistory()
+    crossLinks.value.push({ id: `cl-${fromId}-${toId}`, fromId, toId })
+  }
+
   /* ---- highlighted nodes (from AI suggestions) ---- */
   const highlightedIds = ref<Set<string>>(new Set())
   function setHighlighted(ids: string[]) { highlightedIds.value = new Set(ids) }
   function clearHighlights() { highlightedIds.value = new Set() }
 
   /* ---- AI analysis state ---- */
+  const AI_CACHE_KEY = 'nf:ai:result'
+
+  function loadAnalysisResult(): AnalysisResult | null {
+    if (!import.meta.client) return null
+    try {
+      const raw = localStorage.getItem(AI_CACHE_KEY)
+      return raw ? JSON.parse(raw) as AnalysisResult : null
+    } catch { return null }
+  }
+
   const isAnalyzing       = ref(false)
   const isAIPanelOpen     = ref(false)
-  const streamingThinking = ref('')
-  const suggestions       = ref<MindMapAction[]>([])
-  const analysisResult    = ref<AnalysisResult | null>(null)
+  const userPrompt        = ref('')
+  const cachedResult      = loadAnalysisResult()
+  const streamingThinking = ref(cachedResult?.thinking ?? '')
+  const suggestions       = ref<MindMapAction[]>(cachedResult?.suggestions ?? [])
+  const analysisResult    = ref<AnalysisResult | null>(cachedResult)
 
   function openAIPanel()  { isAIPanelOpen.value = true }
   function closeAIPanel() { isAIPanelOpen.value = false }
@@ -317,9 +340,16 @@ export const useMindMapStore = defineStore('mindMap', () => {
     suggestions.value = []
     analysisResult.value = null
     clearHighlights()
+    if (import.meta.client) localStorage.removeItem(AI_CACHE_KEY)
   }
   function appendThinking(text: string) { streamingThinking.value += text }
   function addSuggestion(action: MindMapAction) { suggestions.value.push(action) }
+
+  watch(analysisResult, (result) => {
+    if (!import.meta.client) return
+    if (result) localStorage.setItem(AI_CACHE_KEY, JSON.stringify(result))
+    else localStorage.removeItem(AI_CACHE_KEY)
+  })
 
   /* ---- agent personality state ---- */
   const AGENT_KEY = 'nf:agent:id'
@@ -357,17 +387,20 @@ export const useMindMapStore = defineStore('mindMap', () => {
     tool:       skipHydrate(tool),
     editingId:  skipHydrate(editingId),
     saveStatus: skipHydrate(saveStatus),
-    canUndo, canRedo,
+    canUndo, canRedo, undo, redo,
     /* helpers */
     nodeById, rootNode, childrenOf, ancestorsOf, levelOf, descendantsOf, branchHueOf,
     /* mutations */
     addNodeAt, addChild, deleteSubtree, setLabel, moveNode, beginDrag, endDrag,
     reparent, setTitle, reset, exportJSON, importJSON,
+    /* cross-links */
+    crossLinks: skipHydrate(crossLinks), addCrossLink,
     /* highlights */
     highlightedIds: skipHydrate(highlightedIds), setHighlighted, clearHighlights,
     /* AI state */
     isAnalyzing:       skipHydrate(isAnalyzing),
     isAIPanelOpen:     skipHydrate(isAIPanelOpen),
+    userPrompt:        skipHydrate(userPrompt),
     streamingThinking: skipHydrate(streamingThinking),
     suggestions:       skipHydrate(suggestions),
     analysisResult:    skipHydrate(analysisResult),
