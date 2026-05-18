@@ -36,7 +36,8 @@
 
         <div class="side-section">connects to:</div>
         <ul class="side-children">
-          <li v-if="!children.length && !crossLinked.length" class="empty">(nothing yet…)</li>
+          <li v-if="!parentNode && !children.length && !crossLinked.length" class="empty">(nothing yet…)</li>
+          <li v-if="parentNode" class="parent-link" @click="jumpTo(parentNode.id)">↑ {{ parentNode.label }}</li>
           <li v-for="c in children" :key="c.id" @click="jumpTo(c.id)">→ {{ c.label }}</li>
           <li v-for="cl in crossLinked" :key="cl.linkId" class="cross-link-item">
             <span @click="jumpTo(cl.node.id)">⤳ {{ cl.node.label }}</span>
@@ -68,10 +69,14 @@ const sheetCollapsed = ref(false)
 const cardEl = ref<HTMLElement | null>(null)
 const cardSize = ref({ w: 268, h: 320 })
 
-const selected = computed(() => G.nodeById(G.selectedId ?? ''))
-const ancestors = computed(() => G.ancestorsOf(G.selectedId ?? ''))
-const children  = computed(() => G.childrenOf(G.selectedId ?? ''))
-const isRoot    = computed(() => G.selectedId === G.rootNode()?.id)
+const selected    = computed(() => G.nodeById(G.selectedId ?? ''))
+const ancestors   = computed(() => G.ancestorsOf(G.selectedId ?? ''))
+const children    = computed(() => G.childrenOf(G.selectedId ?? ''))
+const isRoot      = computed(() => G.selectedId === G.rootNode()?.id)
+const parentNode  = computed(() => {
+  const p = selected.value?.parent
+  return p ? G.nodeById(p) : null
+})
 
 const crossLinked = computed(() => {
   const id = G.selectedId ?? ''

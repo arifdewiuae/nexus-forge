@@ -257,6 +257,7 @@ html, body {
 .side-children li:nth-child(even) { transform: rotate(0.5deg); }
 .side-children li:hover { color: var(--accent); }
 .side-children li.empty { color: #9a8a78; font-style: italic; cursor: default; transform: rotate(0deg); }
+.side-children li.parent-link { opacity: 0.6; }
 .side-children li.cross-link-item { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .side-children li.cross-link-item span { flex: 1; }
 .unlink-btn { font-size: 12px; color: #9a8a78; background: transparent; border: none; cursor: pointer; padding: 0 2px; opacity: 0.6; line-height: 1; flex-shrink: 0; }

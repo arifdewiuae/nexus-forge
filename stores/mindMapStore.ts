@@ -167,7 +167,6 @@ export const useMindMapStore = defineStore('mindMap', () => {
     const id = newNodeId()
     nodes.value.push({ id, x, y, label, parent: parentId })
     selectedId.value = id
-    editingId.value  = id
     return id
   }
 
