@@ -309,6 +309,17 @@ export const useMindMapStore = defineStore('mindMap', () => {
     crossLinks.value.push({ id: `cl-${fromId}-${toId}`, fromId, toId })
   }
 
+  function removeCrossLink(id: string) {
+    const idx = crossLinks.value.findIndex(l => l.id === id)
+    if (idx === -1) return
+    pushHistory()
+    crossLinks.value.splice(idx, 1)
+  }
+
+  function crossLinksOf(nodeId: string) {
+    return crossLinks.value.filter(l => l.fromId === nodeId || l.toId === nodeId)
+  }
+
   /* ---- highlighted nodes (from AI suggestions) ---- */
   const highlightedIds = ref<Set<string>>(new Set())
   function setHighlighted(ids: string[]) { highlightedIds.value = new Set(ids) }
@@ -394,7 +405,7 @@ export const useMindMapStore = defineStore('mindMap', () => {
     addNodeAt, addChild, deleteSubtree, setLabel, moveNode, beginDrag, endDrag,
     reparent, setTitle, reset, exportJSON, importJSON,
     /* cross-links */
-    crossLinks: skipHydrate(crossLinks), addCrossLink,
+    crossLinks: skipHydrate(crossLinks), addCrossLink, removeCrossLink, crossLinksOf,
     /* highlights */
     highlightedIds: skipHydrate(highlightedIds), setHighlighted, clearHighlights,
     /* AI state */

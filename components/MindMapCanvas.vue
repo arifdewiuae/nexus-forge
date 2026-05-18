@@ -36,6 +36,18 @@
           </g>
         </g>
 
+        <!-- Cross-links (AI-suggested associations) -->
+        <g v-for="cl in crossLinkPaths" :key="cl.id" filter="url(#wobble-soft)">
+          <path :d="cl.d" fill="none" stroke="#1f2533" stroke-width="0.8"
+                stroke-dasharray="7 5" stroke-linecap="round" opacity="0.18"
+                transform="translate(1.2 1.6)"/>
+          <path :d="cl.d" fill="none" :stroke="cl.active ? 'var(--accent)' : '#1f2533'"
+                :stroke-width="cl.active ? 2.2 : 1.4"
+                stroke-dasharray="7 5" stroke-linecap="round"
+                :opacity="cl.active ? 1 : 0.5"
+                :class="{ 'edge-new': cl.isNew }"/>
+        </g>
+
         <!-- Link-preview line -->
         <g v-if="linkPreview" filter="url(#wobble-soft)">
           <line :x1="linkPreview.x1" :y1="linkPreview.y1"
@@ -105,6 +117,12 @@
         </g>
       </g>
     </svg>
+
+    <!-- Legend -->
+    <div class="canvas-legend" v-if="G.crossLinks.length > 0">
+      <span class="legend-item"><svg width="24" height="8"><line x1="0" y1="4" x2="24" y2="4" stroke="#1f2533" stroke-width="1.5" stroke-linecap="round" opacity="0.62"/></svg> branch</span>
+      <span class="legend-item"><svg width="24" height="8"><line x1="0" y1="4" x2="24" y2="4" stroke="#1f2533" stroke-width="1.4" stroke-dasharray="5 4" stroke-linecap="round" opacity="0.5"/></svg> link</span>
+    </div>
 
     <!-- Floating label editor (HTML over SVG) -->
     <input v-if="G.editingId"
@@ -247,6 +265,23 @@ const edges = computed(() => {
     i++
   }
   return out
+})
+
+const crossLinkPaths = computed(() => {
+  return G.crossLinks
+    .map(cl => {
+      const a = G.nodeById(cl.fromId)
+      const b = G.nodeById(cl.toId)
+      if (!a || !b) return null
+      const id = cl.id
+      return {
+        id,
+        d: edgePath(a, b, -1),
+        active: G.selectedId === cl.fromId || G.selectedId === cl.toId,
+        isNew: newEdgeIds.value.has(id),
+      }
+    })
+    .filter(Boolean) as { id: string; d: string; active: boolean; isNew: boolean }[]
 })
 
 function decorOf(node: MindMapNode) {

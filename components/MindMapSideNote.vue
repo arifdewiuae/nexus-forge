@@ -36,8 +36,12 @@
 
         <div class="side-section">connects to:</div>
         <ul class="side-children">
-          <li v-if="!children.length" class="empty">(nothing yet…)</li>
+          <li v-if="!children.length && !crossLinked.length" class="empty">(nothing yet…)</li>
           <li v-for="c in children" :key="c.id" @click="jumpTo(c.id)">→ {{ c.label }}</li>
+          <li v-for="cl in crossLinked" :key="cl.linkId" class="cross-link-item">
+            <span @click="jumpTo(cl.node.id)">⤳ {{ cl.node.label }}</span>
+            <button class="unlink-btn" @click.stop="G.removeCrossLink(cl.linkId)" title="Remove connection">✕</button>
+          </li>
         </ul>
 
         <div class="side-actions">
@@ -68,6 +72,15 @@ const selected = computed(() => G.nodeById(G.selectedId ?? ''))
 const ancestors = computed(() => G.ancestorsOf(G.selectedId ?? ''))
 const children  = computed(() => G.childrenOf(G.selectedId ?? ''))
 const isRoot    = computed(() => G.selectedId === G.rootNode()?.id)
+
+const crossLinked = computed(() => {
+  const id = G.selectedId ?? ''
+  return G.crossLinksOf(id).map(cl => {
+    const otherId = cl.fromId === id ? cl.toId : cl.fromId
+    const node = G.nodeById(otherId)
+    return node ? { node, linkId: cl.id } : null
+  }).filter(Boolean) as { node: { id: string; label: string }; linkId: string }[]
+})
 
 const branchLabel = computed(() => {
   const lvl = G.levelOf(G.selectedId ?? '')

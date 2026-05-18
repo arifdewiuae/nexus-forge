@@ -42,16 +42,29 @@
 
       <!-- ── INPUT TAB ── -->
       <div v-if="view === 'input'" class="ai-tab-body">
-        <div class="ai-prompt-label">what's on your mind?</div>
+
+        <!-- Analyze current map -->
+        <button
+          class="ai-analyze-btn"
+          :disabled="G.isAnalyzing"
+          @click="submitAnalyze"
+        >
+          {{ G.isAnalyzing ? '⟳ thinking…' : (G.analysisResult ? '↻ re-analyze map' : '✦ analyze my map') }}
+        </button>
+        <div class="ai-analyze-hint">AI reads your current board and suggests ideas</div>
+
+        <div class="ai-divider"><span>or give it a brain dump</span></div>
+
+        <!-- Brain dump -->
         <div class="ai-prompt-input-row">
           <textarea
             class="ai-prompt-textarea"
             v-model="G.userPrompt"
-            placeholder="type or speak a brain dump… AI will build the map"
-            rows="4"
+            placeholder="type or speak… AI will build the map"
+            rows="3"
             :disabled="G.isAnalyzing"
-            @keydown.meta.enter.prevent="submitAnalyze"
-            @keydown.ctrl.enter.prevent="submitAnalyze"
+            @keydown.meta.enter.prevent="submitWithPrompt"
+            @keydown.ctrl.enter.prevent="submitWithPrompt"
           ></textarea>
           <button
             class="ai-mic-btn"
@@ -66,10 +79,10 @@
 
         <button
           class="ai-submit-btn"
-          :disabled="G.isAnalyzing"
-          @click="submitAnalyze"
+          :disabled="G.isAnalyzing || !G.userPrompt.trim()"
+          @click="submitWithPrompt"
         >
-          {{ G.isAnalyzing ? '⟳ thinking…' : (G.analysisResult ? '↻ re-analyze' : 'build map →') }}
+          {{ G.isAnalyzing ? '⟳ thinking…' : 'build map →' }}
         </button>
         <div class="ai-submit-hint">or ⌘↵</div>
       </div>
@@ -89,11 +102,24 @@
 
         <!-- Suggestions -->
         <div v-if="G.suggestions.length" class="ai-suggestions">
-          <div v-for="(action, i) in G.suggestions" :key="i" class="ai-suggestion-item">
-            <div class="ai-suggestion-kind">{{ kindLabel(action.kind) }}</div>
-            <div class="ai-suggestion-text">{{ describeAction(action) }}</div>
-            <button class="ai-suggestion-btn" @click="applyAction(action)">apply</button>
-          </div>
+          <template v-for="(action, i) in G.suggestions" :key="i">
+            <div v-if="!rejectedSet.has(i)"
+                 class="ai-suggestion-item"
+                 :class="{ 'is-applied': appliedSet.has(i) }">
+              <div class="ai-suggestion-kind">{{ kindLabel(action.kind) }}</div>
+              <div class="ai-suggestion-text">{{ describeAction(action) }}</div>
+              <div class="ai-suggestion-actions">
+                <template v-if="appliedSet.has(i)">
+                  <span class="ai-suggestion-done">✓ applied</span>
+                  <button class="ai-suggestion-undo" @click="undoApply(i)" title="Undo this action">↶ undo</button>
+                </template>
+                <template v-else>
+                  <button class="ai-suggestion-reject" @click="rejectAction(i)" title="Dismiss">✕</button>
+                  <button class="ai-suggestion-btn" @click="doApply(action, i)">apply</button>
+                </template>
+              </div>
+            </div>
+          </template>
         </div>
 
         <!-- Stats + re-analyze -->
@@ -146,9 +172,15 @@ watch(() => G.isAnalyzing, (analyzing) => {
   if (analyzing) view.value = 'ideas'
 })
 
-/* ---- Submit (from input tab) ---- */
+/* ---- Submit handlers ---- */
 function submitAnalyze() {
   if (G.isAnalyzing) return
+  emit('analyze')
+  view.value = 'ideas'
+}
+
+function submitWithPrompt() {
+  if (G.isAnalyzing || !G.userPrompt.trim()) return
   emit('analyze')
   view.value = 'ideas'
 }
@@ -245,6 +277,31 @@ function renderMarkdown(text: string): string {
     .replace(/\n/g, '<br>')
 }
 
+/* ---- Suggestion state (applied / rejected per index) ---- */
+const appliedSet  = ref(new Set<number>())
+const rejectedSet = ref(new Set<number>())
+
+// Reset state whenever a new analysis batch arrives
+watch(() => G.suggestions.length, (n, prev) => {
+  if (n > 0 && prev === 0) { appliedSet.value = new Set(); rejectedSet.value = new Set() }
+})
+
+function doApply(action: MindMapAction, i: number) {
+  applyMindMapAction(G, action)
+  appliedSet.value = new Set(appliedSet.value).add(i)
+}
+
+function undoApply(i: number) {
+  G.undo()
+  const next = new Set(appliedSet.value)
+  next.delete(i)
+  appliedSet.value = next
+}
+
+function rejectAction(i: number) {
+  rejectedSet.value = new Set(rejectedSet.value).add(i)
+}
+
 /* ---- Action helpers ---- */
 function kindLabel(kind: string): string {
   const labels: Record<string, string> = {
@@ -283,9 +340,7 @@ function describeAction(action: MindMapAction): string {
   }
 }
 
-function applyAction(action: MindMapAction) {
-  applyMindMapAction(G, action)
-}
+
 </script>
 
 <style scoped>
@@ -379,6 +434,53 @@ function applyAction(action: MindMapAction) {
 }
 
 /* ---- Input tab ---- */
+.ai-analyze-btn {
+  font-family: 'Caveat', cursive;
+  font-size: 17px;
+  background: transparent;
+  border: 1.4px solid var(--accent);
+  color: var(--accent);
+  border-radius: 12px;
+  padding: 6px 16px;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.15s, color 0.15s, opacity 0.15s;
+}
+
+.ai-analyze-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.ai-analyze-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ai-analyze-hint {
+  font-family: 'Kalam', cursive;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  margin-top: -4px;
+}
+
+.ai-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-family: 'Kalam', cursive;
+  font-size: 11px;
+}
+
+.ai-divider::before,
+.ai-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(31,37,51,0.12);
+}
+
 .ai-prompt-label {
   font-family: 'Caveat', cursive;
   font-size: 14px;
@@ -456,11 +558,11 @@ function applyAction(action: MindMapAction) {
   font-size: 17px;
   background: var(--accent);
   color: white;
-  border: none;
+  border: 1.4px solid var(--accent);
   border-radius: 12px;
   padding: 6px 16px;
   cursor: pointer;
-  align-self: flex-end;
+  width: 100%;
   transition: opacity 0.15s, transform 0.1s;
 }
 
@@ -515,5 +617,56 @@ function applyAction(action: MindMapAction) {
 .ai-reanalyze-btn:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+/* ---- Suggestion action row ---- */
+.ai-suggestion-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ai-suggestion-item.is-applied {
+  opacity: 0.55;
+}
+
+.ai-suggestion-done {
+  font-family: 'Kalam', cursive;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.ai-suggestion-undo {
+  font-family: 'Caveat', cursive;
+  font-size: 14px;
+  background: transparent;
+  border: 1.2px solid var(--muted);
+  color: var(--muted);
+  border-radius: 10px;
+  padding: 1px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ai-suggestion-undo:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.ai-suggestion-reject {
+  font-size: 11px;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  opacity: 0.5;
+  line-height: 1;
+}
+
+.ai-suggestion-reject:hover {
+  color: #c0392b;
+  opacity: 1;
 }
 </style>
