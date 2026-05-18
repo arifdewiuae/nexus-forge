@@ -37,7 +37,10 @@
         <div class="side-section">connects to:</div>
         <ul class="side-children">
           <li v-if="!parentNode && !children.length && !crossLinked.length" class="empty">(nothing yet…)</li>
-          <li v-if="parentNode" class="parent-link" @click="jumpTo(parentNode.id)">↑ {{ parentNode.label }}</li>
+          <li v-if="parentNode" class="parent-link cross-link-item">
+            <span @click="jumpTo(parentNode.id)">↑ {{ parentNode.label }}</span>
+            <button v-if="!isRoot" class="unlink-btn" @click.stop="detachFromParent" title="Move to top level">✕</button>
+          </li>
           <li v-for="c in children" :key="c.id" @click="jumpTo(c.id)">→ {{ c.label }}</li>
           <li v-for="cl in crossLinked" :key="cl.linkId" class="cross-link-item">
             <span @click="jumpTo(cl.node.id)">⤳ {{ cl.node.label }}</span>
@@ -132,6 +135,13 @@ function addChildHere() {
 function deleteHere() {
   if (isRoot.value) return
   G.deleteSubtree(G.selectedId ?? '')
+}
+
+function detachFromParent() {
+  const id = G.selectedId
+  const root = G.rootNode()
+  if (!id || !root || id === root.id) return
+  G.reparent(id, root.id)
 }
 
 function measureCard() {
