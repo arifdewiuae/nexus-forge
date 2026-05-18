@@ -180,8 +180,13 @@ function onAccentChange(color: string) {
         @select="showAgentSelector = false"
       />
 
-      <!-- Theme color button (bottom-left, above hint) -->
+      <!-- Theme color + legend row -->
       <div class="theme-picker-row">
+        <template v-if="G.crossLinks.length > 0">
+          <span class="legend-item"><svg width="24" height="8"><line x1="0" y1="4" x2="24" y2="4" stroke="#1f2533" stroke-width="1.5" stroke-linecap="round" opacity="0.62"/></svg> branch</span>
+          <span class="legend-item"><svg width="24" height="8"><line x1="0" y1="4" x2="24" y2="4" stroke="#1f2533" stroke-width="1.4" stroke-dasharray="5 4" stroke-linecap="round" opacity="0.5"/></svg> link</span>
+          <span class="legend-sep">·</span>
+        </template>
         <span class="theme-picker-label">accent</span>
         <input type="color" class="theme-color-input" :value="G.accentColor" @input="(e) => onAccentChange((e.target as HTMLInputElement).value)" title="Change accent color"/>
       </div>

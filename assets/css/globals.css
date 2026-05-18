@@ -267,15 +267,7 @@ html, body {
 .side-action-btn:hover { color: var(--accent); }
 .side-action-btn:disabled { opacity: 0.35; cursor: default; }
 
-/* ---------- Canvas legend ---------- */
-.canvas-legend {
-  position: absolute;
-  bottom: 58px;
-  left: 14px;
-  display: flex;
-  gap: 12px;
-  pointer-events: none;
-}
+/* ---------- Canvas legend (inline in theme-picker-row) ---------- */
 .legend-item {
   display: flex;
   align-items: center;
@@ -284,6 +276,13 @@ html, body {
   font-size: 11px;
   color: var(--muted);
   opacity: 0.75;
+  pointer-events: none;
+}
+.legend-sep {
+  font-family: 'Kalam', cursive;
+  font-size: 14px;
+  color: var(--muted);
+  opacity: 0.4;
 }
 
 /* ---------- Floating label editor ---------- */

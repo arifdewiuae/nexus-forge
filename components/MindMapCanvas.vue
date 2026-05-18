@@ -118,12 +118,6 @@
       </g>
     </svg>
 
-    <!-- Legend -->
-    <div class="canvas-legend" v-if="G.crossLinks.length > 0">
-      <span class="legend-item"><svg width="24" height="8"><line x1="0" y1="4" x2="24" y2="4" stroke="#1f2533" stroke-width="1.5" stroke-linecap="round" opacity="0.62"/></svg> branch</span>
-      <span class="legend-item"><svg width="24" height="8"><line x1="0" y1="4" x2="24" y2="4" stroke="#1f2533" stroke-width="1.4" stroke-dasharray="5 4" stroke-linecap="round" opacity="0.5"/></svg> link</span>
-    </div>
-
     <!-- Floating label editor (HTML over SVG) -->
     <input v-if="G.editingId"
            ref="editorEl"
