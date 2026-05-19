@@ -222,11 +222,15 @@ html, body {
   line-height: 1;
   transform: rotate(-1deg);
   flex: 1;
+  min-width: 0;
   background: transparent;
   border: none;
   outline: none;
   padding: 0;
   word-break: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   -webkit-user-select: text;
           user-select: text;
 }
@@ -482,6 +486,23 @@ html, body {
 .agent-card-tagline { font-family: 'Kalam', cursive; font-size: 13px; color: var(--muted); margin: 0 0 10px 0; line-height: 1.4; }
 .agent-card-select { font-family: 'Caveat', cursive; font-size: 18px; background: transparent; border: 1.4px solid var(--ink); color: var(--ink); padding: 2px 12px; border-radius: 16px; cursor: pointer; }
 .agent-card-select:hover, .agent-card.active .agent-card-select { background: var(--accent); border-color: var(--accent); color: var(--paper-card); }
+
+/* ---------- Thinking / tidy animations ---------- */
+@keyframes spin-cw {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes chip-breathe {
+  0%, 100% { opacity: 1; transform: rotate(-1deg) scale(1); }
+  50%       { opacity: 0.72; transform: rotate(1deg) scale(1.04); }
+}
+.spin-icon {
+  display: inline-block;
+  animation: spin-cw 1s linear infinite;
+}
+.chip-thinking {
+  animation: chip-breathe 1.4s ease-in-out infinite !important;
+}
 
 /* ---------- Responsive ---------- */
 @keyframes sheet-up {

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computeRadialLayout } from '~/lib/mindmap/layout'
+
 definePageMeta({ ssr: false })
 
 const canvasRef = ref<{ zoomIn(): void; zoomOut(): void; fitView(): void; centerOn(id: string): void; startEdit(node: { id: string; label: string; x: number; y: number; parent: string | null }): void; zoomPct: number } | null>(null)
@@ -63,7 +65,7 @@ function onKey(e: KeyboardEvent) {
   }
   if (editable) return
 
-  const toolMap: Record<string, 'select' | 'add' | 'link' | 'erase'> = { v: 'select', a: 'add', l: 'link', e: 'erase' }
+  const toolMap: Record<string, 'select' | 'add' | 'branch' | 'connect' | 'erase'> = { v: 'select', a: 'add', l: 'branch', c: 'connect', e: 'erase' }
   const k = e.key.toLowerCase()
   if (toolMap[k]) { G.tool = toolMap[k]; G.linkFromId = null; return }
 
@@ -116,6 +118,18 @@ function handleCloseAIPanel() {
   G.closeAIPanel()
 }
 
+/* ---- Tidy layout ---- */
+async function handleTidy() {
+  if (G.isLayouting) return
+  G.isLayouting = true
+  await nextTick()
+  const positions = computeRadialLayout(G.nodes)
+  G.applyLayout(positions)
+  await nextTick()
+  canvasRef.value?.fitView()
+  G.isLayouting = false
+}
+
 /* ---- Theme ---- */
 function onAccentChange(color: string) {
   G.setAccent(color)
@@ -139,6 +153,7 @@ function onAccentChange(color: string) {
         @help="openModal('help')"
         @analyze="handleAnalyze"
         @agent="showAgentSelector = true"
+        @tidy="handleTidy"
         @reset="openModal('confirm')"
       />
       <MindMapSideNote
@@ -159,6 +174,7 @@ function onAccentChange(color: string) {
         <span><kbd>tab</kbd> add child</span>
         <span><kbd>enter</kbd> rename</span>
         <span><kbd>del</kbd> delete</span>
+        <span><kbd>L</kbd> branch · <kbd>C</kbd> connect</span>
         <span><kbd>⌘Z</kbd> undo</span>
         <span><kbd>⌘↵</kbd> ask AI</span>
         <span><kbd>scroll</kbd> pan · <kbd>⌘</kbd>+<kbd>scroll</kbd> zoom</span>
@@ -182,11 +198,10 @@ function onAccentChange(color: string) {
 
       <!-- Theme color + legend row -->
       <div class="theme-picker-row">
-        <template v-if="G.crossLinks.length > 0">
-          <span class="legend-item"><svg width="24" height="8"><line x1="0" y1="4" x2="24" y2="4" stroke="#1f2533" stroke-width="1.5" stroke-linecap="round" opacity="0.62"/></svg> branch</span>
-          <span class="legend-item"><svg width="24" height="8"><line x1="0" y1="4" x2="24" y2="4" stroke="#1f2533" stroke-width="1.4" stroke-dasharray="5 4" stroke-linecap="round" opacity="0.5"/></svg> link</span>
-          <span class="legend-sep">·</span>
-        </template>
+        <span class="legend-item"><svg width="24" height="8"><line x1="0" y1="4" x2="24" y2="4" stroke="#1f2533" stroke-width="1.5" stroke-linecap="round" opacity="0.62"/></svg> branch</span>
+        <span class="legend-item"><svg width="24" height="8"><line x1="0" y1="4" x2="24" y2="4" stroke="#1f2533" stroke-width="1.4" stroke-dasharray="5 4" stroke-linecap="round" opacity="0.5"/></svg> connect</span>
+        <button class="legend-info-btn" @click="openModal('help')" title="How do these work?">?</button>
+        <span class="legend-sep">·</span>
         <span class="theme-picker-label">accent</span>
         <input type="color" class="theme-color-input" :value="G.accentColor" @input="(e) => onAccentChange((e.target as HTMLInputElement).value)" title="Change accent color"/>
       </div>
@@ -220,6 +235,23 @@ function onAccentChange(color: string) {
   gap: 8px;
   z-index: 6;
 }
+.legend-info-btn {
+  font-family: 'Caveat', cursive;
+  font-size: 15px;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--muted);
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.legend-info-btn:hover { opacity: 1; }
+
 .theme-picker-label {
   font-family: 'Caveat', cursive;
   font-size: 18px;

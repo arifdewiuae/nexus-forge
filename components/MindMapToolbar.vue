@@ -47,6 +47,13 @@
       <span>{{ G.isAnalyzing ? '⟳ thinking…' : '✦ ask AI' }}</span>
     </button>
 
+    <!-- Tidy layout -->
+    <button class="tool-chip" :class="{ 'chip-thinking': G.isLayouting }" :disabled="G.isLayouting" @click="emit('tidy')" title="AI tidy layout">
+      <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
+      <span v-if="G.isLayouting"><span class="spin-icon">⟳</span> tidying…</span>
+      <span v-else>⊹ tidy</span>
+    </button>
+
     <!-- Agent selector -->
     <button class="tool-chip" @click="emit('agent')" title="Choose AI personality">
       <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
@@ -79,6 +86,7 @@ const emit = defineEmits<{
   help: []
   analyze: []
   agent: []
+  tidy: []
   reset: []
 }>()
 
@@ -88,13 +96,14 @@ defineExpose({ aiBtn })
 const TOOL_BLOB = 'M 8 4 Q 60 1, 112 5 Q 116 17, 110 30 Q 60 33, 6 28 Q 3 14, 8 4 Z'
 
 const tools = [
-  { id: 'select' as const, label: 'select', key: 'V' },
-  { id: 'add'    as const, label: '+ node', key: 'A' },
-  { id: 'link'   as const, label: '↗ link', key: 'L' },
-  { id: 'erase'  as const, label: '✗ erase', key: 'E' },
+  { id: 'select'  as const, label: 'select',    key: 'V' },
+  { id: 'add'     as const, label: '+ node',    key: 'A' },
+  { id: 'branch'  as const, label: '↗ branch',  key: 'L' },
+  { id: 'connect' as const, label: '⤳ connect', key: 'C' },
+  { id: 'erase'   as const, label: '✗ erase',   key: 'E' },
 ]
 
-function setTool(id: 'select' | 'add' | 'link' | 'erase') {
+function setTool(id: 'select' | 'add' | 'branch' | 'connect' | 'erase') {
   G.tool = id; G.linkFromId = null
 }
 

@@ -52,12 +52,14 @@
         <g v-if="linkPreview" filter="url(#wobble-soft)">
           <line :x1="linkPreview.x1" :y1="linkPreview.y1"
                 :x2="linkPreview.x2" :y2="linkPreview.y2"
-                stroke="var(--accent)" stroke-width="2" stroke-dasharray="6 5"
+                stroke="var(--accent)" stroke-width="2"
+                :stroke-dasharray="linkPreview.dashed ? '6 5' : '0'"
                 stroke-linecap="round"/>
         </g>
 
         <!-- Nodes -->
         <g v-for="node in G.nodes" :key="node.id"
+           :class="{ 'node-layouting': G.isLayouting }"
            :transform="`translate(${node.x} ${node.y}) rotate(${decorOf(node).rot})`">
 
           <!-- AI highlight ring -->
@@ -325,7 +327,7 @@ function onCanvasPointerDown(e: PointerEvent) {
     return
   }
 
-  if (G.tool === 'link' && G.linkFromId) { G.linkFromId = null; return }
+  if ((G.tool === 'branch' || G.tool === 'connect') && G.linkFromId) { G.linkFromId = null; return }
 
   panStart = { x: e.clientX, y: e.clientY, px: pan.value.x, py: pan.value.y, moved: false }
   panning.value = true
@@ -347,7 +349,7 @@ function onPanUp() {
 }
 
 function onCanvasPointerMove(e: PointerEvent) {
-  if (G.tool === 'link' && G.linkFromId) {
+  if ((G.tool === 'branch' || G.tool === 'connect') && G.linkFromId) {
     cursorWorld.value = screenToWorld(e.clientX, e.clientY)
   } else if (cursorWorld.value) {
     cursorWorld.value = null
@@ -363,13 +365,25 @@ function onNodePointerDown(e: PointerEvent, node: MindMapNode) {
 
   if (G.tool === 'erase') { G.deleteSubtree(node.id); return }
 
-  if (G.tool === 'link') {
+  if (G.tool === 'branch') {
     if (!G.linkFromId) {
       G.linkFromId = node.id; G.selectedId = node.id
     } else if (G.linkFromId !== node.id) {
       const fromId = G.linkFromId
       G.reparent(node.id, fromId)
       markEdgeNew(`${fromId}->${node.id}`)
+      G.linkFromId = null; G.selectedId = node.id
+    } else {
+      G.linkFromId = null
+    }
+    return
+  }
+
+  if (G.tool === 'connect') {
+    if (!G.linkFromId) {
+      G.linkFromId = node.id; G.selectedId = node.id
+    } else if (G.linkFromId !== node.id) {
+      G.addCrossLink(G.linkFromId, node.id)
       G.linkFromId = null; G.selectedId = node.id
     } else {
       G.linkFromId = null
@@ -442,15 +456,16 @@ const canvasClass = computed(() => ({
   canvas: true,
   panning: panning.value,
   'add-mode': G.tool === 'add',
-  'link-mode': G.tool === 'link',
+  'link-mode': G.tool === 'branch',
+  'connect-mode': G.tool === 'connect',
   'erase-mode': G.tool === 'erase',
 }))
 
 const linkPreview = computed(() => {
-  if (G.tool !== 'link' || !G.linkFromId || !cursorWorld.value) return null
+  if ((G.tool !== 'branch' && G.tool !== 'connect') || !G.linkFromId || !cursorWorld.value) return null
   const a = G.nodeById(G.linkFromId)
   if (!a) return null
-  return { x1: a.x, y1: a.y, x2: cursorWorld.value.x, y2: cursorWorld.value.y }
+  return { x1: a.x, y1: a.y, x2: cursorWorld.value.x, y2: cursorWorld.value.y, dashed: G.tool === 'connect' }
 })
 
 /* ---- imperative API (exposed to parent) ---- */
@@ -502,6 +517,9 @@ defineExpose({ zoomIn, zoomOut, fitView, centerOn, startEdit, zoom, zoomPct })
 </script>
 
 <style scoped>
+.node-layouting {
+  transition: transform 0.55s cubic-bezier(0.34, 1.2, 0.64, 1);
+}
 .edge-new {
   stroke-dasharray: 300;
   stroke-dashoffset: 300;

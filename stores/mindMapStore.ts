@@ -66,7 +66,7 @@ export const useMindMapStore = defineStore('mindMap', () => {
   const crossLinks = ref<CrossLink[]>([])
   const selectedId = ref<string | null>(initial.nodes.find(n => n.parent === null)?.id ?? initial.nodes[0]?.id ?? null)
   const linkFromId = ref<string | null>(null)
-  const tool       = ref<'select' | 'add' | 'link' | 'erase'>('select')
+  const tool       = ref<'select' | 'add' | 'branch' | 'connect' | 'erase'>('select')
   const editingId  = ref<string | null>(null)
   const saveStatus = ref<'idle' | 'saving' | 'saved'>('saved')
 
@@ -374,6 +374,18 @@ export const useMindMapStore = defineStore('mindMap', () => {
     if (import.meta.client) localStorage.setItem(AGENT_KEY, id)
   }
 
+  /* ---- layout ---- */
+  const isLayouting = ref(false)
+
+  function applyLayout(positions: { id: string; x: number; y: number }[]) {
+    const posMap = new Map(positions.map(p => [p.id, p]))
+    pushHistory()
+    nodes.value = nodes.value.map(n => {
+      const pos = posMap.get(n.id)
+      return pos ? { ...n, x: pos.x, y: pos.y } : n
+    })
+  }
+
   /* ---- accent / theme color ---- */
   const THEME_KEY = 'nf:theme:accent'
   const accentColor = ref<string>(
@@ -407,6 +419,8 @@ export const useMindMapStore = defineStore('mindMap', () => {
     crossLinks: skipHydrate(crossLinks), addCrossLink, removeCrossLink, crossLinksOf,
     /* highlights */
     highlightedIds: skipHydrate(highlightedIds), setHighlighted, clearHighlights,
+    /* layout */
+    isLayouting: skipHydrate(isLayouting), applyLayout,
     /* AI state */
     isAnalyzing:       skipHydrate(isAnalyzing),
     isAIPanelOpen:     skipHydrate(isAIPanelOpen),

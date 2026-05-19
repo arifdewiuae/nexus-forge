@@ -34,16 +34,16 @@
           · {{ branchLabel }}
         </div>
 
-        <div class="side-section">connects to:</div>
+        <div class="side-section">relations:</div>
         <ul class="side-children">
           <li v-if="!parentNode && !children.length && !crossLinked.length" class="empty">(nothing yet…)</li>
           <li v-if="parentNode" class="parent-link cross-link-item">
-            <span @click="jumpTo(parentNode.id)">↑ {{ parentNode.label }}</span>
-            <button v-if="!isRoot" class="unlink-btn" @click.stop="detachFromParent" title="Move to top level">✕</button>
+            <span @click="jumpTo(parentNode.id)">↑ branch: {{ parentNode.label }}</span>
+            <button v-if="!isRoot" class="unlink-btn" @click.stop="detachFromParent" title="Detach from parent">✕</button>
           </li>
-          <li v-for="c in children" :key="c.id" @click="jumpTo(c.id)">→ {{ c.label }}</li>
+          <li v-for="c in children" :key="c.id" @click="jumpTo(c.id)">↓ branch: {{ c.label }}</li>
           <li v-for="cl in crossLinked" :key="cl.linkId" class="cross-link-item">
-            <span @click="jumpTo(cl.node.id)">⤳ {{ cl.node.label }}</span>
+            <span @click="jumpTo(cl.node.id)">⤳ connect: {{ cl.node.label }}</span>
             <button class="unlink-btn" @click.stop="G.removeCrossLink(cl.linkId)" title="Remove connection">✕</button>
           </li>
         </ul>
