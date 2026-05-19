@@ -8,10 +8,9 @@ export default defineNuxtConfig({
   ],
 
   runtimeConfig: {
-    fireworksApiKey: process.env.FIREWORKS_API_KEY ?? '',
     public: {
       wsServerUrl: 'ws://localhost:1234',
-      demoKeysEnabled: process.env.DEMO_KEYS_ENABLED === 'true',
+      demoKeysEnabled: false,   // overridden by NUXT_PUBLIC_DEMO_KEYS_ENABLED at runtime
     },
   },
 

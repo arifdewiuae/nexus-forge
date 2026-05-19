@@ -9,22 +9,20 @@ interface RequestBody {
   userPrompt?: string
 }
 
-function resolveApiKey(event: Parameters<typeof getHeader>[0], runtimeKey: string): string {
+function resolveApiKey(
+  event: Parameters<typeof getHeader>[0],
+  runtimeKey: string,
+  demoEnabled: boolean,
+): string {
   const headerKey = getHeader(event, HEADER_FIREWORKS_KEY)?.trim()
   if (headerKey) return headerKey
-
-  if (process.env.DEMO_KEYS_ENABLED === 'true') {
-    if (runtimeKey) return runtimeKey
-    if (process.env.FIREWORKS_API_KEY) return process.env.FIREWORKS_API_KEY
-  }
-
+  if (demoEnabled && runtimeKey) return runtimeKey
   return ''
 }
 
 export default defineEventHandler(async (event) => {
-  const config = useRuntimeConfig(event)
   const userKey = getHeader(event, HEADER_FIREWORKS_KEY)?.trim() ?? ''
-  const apiKey = resolveApiKey(event, config.fireworksApiKey)
+  const apiKey = resolveApiKey(event, process.env.FIREWORKS_API_KEY ?? '', process.env.DEMO_KEYS_ENABLED === 'true')
 
   if (!apiKey) {
     throw createError({ statusCode: 401, message: 'No API key configured. Add your Fireworks key in Settings (⚙ keys).' })

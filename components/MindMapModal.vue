@@ -45,7 +45,8 @@
         <div class="key-row">
           <input
             class="key-input"
-            :type="showKey ? 'text' : 'password'"
+            :class="{ 'key-input--masked': !showKey }"
+            type="text"
             v-model="keyDraft"
             placeholder="fw_..."
             spellcheck="false"

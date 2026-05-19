@@ -100,11 +100,10 @@ onMounted(() => window.addEventListener('keydown', onKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 /* ---- AI analysis ---- */
-const { analyze, abort } = useAIAnalysis()
 const { hasKey } = useApiKeys()
+const { analyze, abort } = useAIAnalysis(() => openModal('settings'))
 
 async function handleAnalyze() {
-  if (!hasKey.value) { openModal('settings'); return }
   if (!G.activeAgent) { showAgentSelector.value = true; return }
   computePanelAnchor()
   G.openAIPanel()

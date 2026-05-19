@@ -3,7 +3,7 @@ import { serializeGraph } from '~/lib/mindmap/serializer'
 import { HEADER_FIREWORKS_KEY } from '~/lib/config'
 import { useApiKeys } from '~/composables/useApiKeys'
 
-export function useAIAnalysis() {
+export function useAIAnalysis(onKeyRequired?: () => void) {
   const store = useMindMapStore()
   const abortController = ref<AbortController | null>(null)
   const { fireworksKey } = useApiKeys()
@@ -34,6 +34,7 @@ export function useAIAnalysis() {
         signal: controller.signal,
       })
 
+      if (response.status === 401) { onKeyRequired?.(); return }
       if (!response.ok) throw new Error(`Server error ${response.status}`)
       if (!response.body)  throw new Error('No response body')
 

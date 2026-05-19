@@ -424,6 +424,7 @@ html, body {
 .key-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .key-input { flex: 1; font-family: ui-monospace, 'JetBrains Mono', monospace; font-size: 13px; padding: 8px 10px; border: 1.5px solid var(--ink); border-radius: 6px; background: white; color: var(--ink); outline: none; }
 .key-input:focus { border-color: var(--accent); }
+.key-input--masked { -webkit-text-security: disc; letter-spacing: 2px; }
 .key-toggle { font-family: 'Caveat', cursive; font-size: 20px; background: none; border: 1.5px solid var(--ink); border-radius: 6px; width: 36px; height: 36px; cursor: pointer; color: var(--ink); opacity: 0.6; transition: opacity 0.12s; }
 .key-toggle:hover { opacity: 1; }
 .key-hint { font-size: 12px !important; margin-top: 0 !important; }

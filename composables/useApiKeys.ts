@@ -2,6 +2,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { STORAGE_KEY_API_KEYS } from '~/lib/config'
 
 export function useApiKeys() {
+  const config = useRuntimeConfig()
   const fireworksKey = ref('')
 
   function load() {
@@ -35,9 +36,10 @@ export function useApiKeys() {
 
   onUnmounted(() => window.removeEventListener('storage', onStorage))
 
-  const config = useRuntimeConfig()
-  const demoKeysEnabled = config.public.demoKeysEnabled === true
-  const hasKey = computed(() => demoKeysEnabled || fireworksKey.value.length > 0)
+  // hasKey is true when the user has a local key OR the server demo key is enabled.
+  const hasKey = computed(
+    () => fireworksKey.value.length > 0 || !!config.public.demoKeysEnabled,
+  )
 
-  return { fireworksKey, hasKey, demoKeysEnabled, save, clear }
+  return { fireworksKey, hasKey, save, clear }
 }
