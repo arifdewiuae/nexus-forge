@@ -524,13 +524,13 @@ async function exportPNG(): Promise<void> {
   clone.setAttribute('width', String(w))
   clone.setAttribute('height', String(h))
 
-  // Add paper background so PNG isn't transparent
+  // Add paper background
   const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
   bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%')
-  bg.setAttribute('fill', '#f5f0e8')
+  bg.setAttribute('fill', '#faf6ec')
   clone.insertBefore(bg, clone.firstChild)
 
-  // Inline the Caveat/Kalam font so it renders in the exported image
+  // Inline @font-face rules so text renders in the exported image
   const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style')
   const fontFaces = Array.from(document.styleSheets)
     .flatMap(s => { try { return Array.from(s.cssRules) } catch { return [] } })
@@ -540,7 +540,15 @@ async function exportPNG(): Promise<void> {
   styleEl.textContent = fontFaces
   clone.insertBefore(styleEl, clone.firstChild)
 
-  const svgStr = new XMLSerializer().serializeToString(clone)
+  // Resolve CSS custom properties — SVG blobs don't have access to the page's CSS context
+  const rootStyle = getComputedStyle(document.documentElement)
+  const cssVars: Record<string, string> = {}
+  for (const prop of ['--paper-card', '--ink', '--ink-soft', '--accent', '--accent-soft', '--muted']) {
+    cssVars[prop] = rootStyle.getPropertyValue(prop).trim()
+  }
+  let svgStr = new XMLSerializer().serializeToString(clone)
+  svgStr = svgStr.replace(/var\(\s*(--[a-z-]+)\s*\)/g, (_, name) => cssVars[name] ?? '#000')
+
   const blob = new Blob([svgStr], { type: 'image/svg+xml' })
   const url = URL.createObjectURL(blob)
 
