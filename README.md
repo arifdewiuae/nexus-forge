@@ -1,6 +1,6 @@
 # Nexus Forge — AI Mind Map
 
-An infinite-canvas mind-map with a fleet of AI agents that analyze your thinking, stream their reasoning live, and restructure your map with a click.
+An infinite-canvas mind-map with four distinct AI personalities that analyze your thinking, stream their reasoning live, and restructure your map with a click.
 
 > **Portfolio demo** — AI Engineering + Frontend  
 > Stack: Nuxt 3 · LangGraph.js · Fireworks.ai · Custom SVG Canvas · Pinia · Vitest
@@ -9,10 +9,9 @@ An infinite-canvas mind-map with a fleet of AI agents that analyze your thinking
 
 ## Demo
 
-<!-- Replace with your actual GIF/video once recorded -->
-![Demo GIF](docs/demo.gif)
+**Live:** [nexus-forge-virid.vercel.app](https://nexus-forge-virid.vercel.app/)
 
-**The core loop:** Build a messy mind-map → pick an agent personality → watch it stream dry, clinical reasoning → click Apply → nodes restructure themselves.
+**The core loop:** Build a messy mind-map → pick a personality → watch it stream dry, clinical reasoning → click Apply → nodes restructure themselves.
 
 ---
 
@@ -20,7 +19,7 @@ An infinite-canvas mind-map with a fleet of AI agents that analyze your thinking
 
 ```bash
 # 1 — clone and install
-git clone <repo-url>
+git clone https://github.com/arifdewiuae/nexus-forge.git
 npm install
 
 # 2 — configure environment
@@ -118,9 +117,9 @@ type MindMapAction =
 
 ---
 
-## AI Agents
+## AI Personalities
 
-Four distinct personalities, each with different reasoning styles:
+Four distinct personalities, each with a different reasoning style:
 
 | Agent | Personality | Voice |
 |---|---|---|
@@ -175,7 +174,6 @@ Model: `accounts/fireworks/models/minimax-m2p7` via Fireworks.ai
 
 ## Future Work
 
-- **Real-time collaboration** — Yjs CRDT + y-websocket (`ws-server/` stub is ready; client binding is the next phase)
 - Version history + AI diff view
 - Voice input for node labels
 - Mobile touch support
