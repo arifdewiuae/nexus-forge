@@ -530,8 +530,9 @@ async function exportPNG(): Promise<void> {
   const accent = cssVars['--accent'] || '#c4604a'
 
   const clone = svgEl.cloneNode(true) as SVGSVGElement
-  clone.setAttribute('width', String(w))
-  clone.setAttribute('height', String(h))
+  // Set SVG to 2× so the renderer produces crisp text natively, not upscaled
+  clone.setAttribute('width', String(w * 2))
+  clone.setAttribute('height', String(h * 2))
 
   // Inline .node-text class attributes — CSS classes aren't available in blob scope
   for (const el of clone.querySelectorAll('text.node-text')) {
@@ -588,7 +589,6 @@ async function exportPNG(): Promise<void> {
       const canvas = document.createElement('canvas')
       canvas.width = w * 2; canvas.height = h * 2
       const ctx = canvas.getContext('2d')!
-      ctx.scale(2, 2)
       ctx.drawImage(img, 0, 0)
       URL.revokeObjectURL(url)
       canvas.toBlob(pngBlob => {
