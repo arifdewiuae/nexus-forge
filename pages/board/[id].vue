@@ -3,7 +3,7 @@ import { computeRadialLayout } from '~/lib/mindmap/layout'
 
 definePageMeta({ ssr: false })
 
-const canvasRef = ref<{ zoomIn(): void; zoomOut(): void; fitView(): void; centerOn(id: string): void; startEdit(node: { id: string; label: string; x: number; y: number; parent: string | null }): void; zoomPct: number } | null>(null)
+const canvasRef = ref<{ zoomIn(): void; zoomOut(): void; fitView(): void; centerOn(id: string): void; startEdit(node: { id: string; label: string; x: number; y: number; parent: string | null }): void; exportPNG(): Promise<void>; zoomPct: number } | null>(null)
 const toolbarRef = ref<{ aiBtn: HTMLButtonElement | null } | null>(null)
 
 const G = useMindMapStore()
@@ -151,6 +151,7 @@ function onAccentChange(color: string) {
         ref="toolbarRef"
         @fit="canvasRef?.fitView()"
         @export="openModal('export')"
+        @exportpng="canvasRef?.exportPNG()"
         @import="openModal('import')"
         @help="openModal('help')"
         @analyze="handleAnalyze"

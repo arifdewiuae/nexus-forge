@@ -3,6 +3,7 @@
     <button v-for="t in tools" :key="t.id" class="tool-chip"
             :class="{ active: G.tool === t.id }"
             :title="`${t.label} (${t.key})`"
+            :aria-label="`${t.label} tool (${t.key})`"
             @click="setTool(t.id)">
       <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34">
         <path :d="TOOL_BLOB" filter="url(#wobble)"/>
@@ -12,26 +13,30 @@
 
     <span class="tool-divider"></span>
 
-    <button class="tool-chip" :disabled="!G.canUndo" @click="G.undo()" title="Undo (⌘Z)">
+    <button class="tool-chip" :disabled="!G.canUndo" @click="G.undo()" title="Undo (⌘Z)" aria-label="Undo">
       <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
       <span>↶ undo</span>
     </button>
-    <button class="tool-chip" :disabled="!G.canRedo" @click="G.redo()" title="Redo (⌘⇧Z)">
+    <button class="tool-chip" :disabled="!G.canRedo" @click="G.redo()" title="Redo (⌘⇧Z)" aria-label="Redo">
       <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
       <span>↷ redo</span>
     </button>
 
     <span class="tool-divider"></span>
 
-    <button class="tool-chip" @click="emit('fit')" title="Fit view (F)">
+    <button class="tool-chip" @click="emit('fit')" title="Fit view (F)" aria-label="Fit view">
       <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
       <span>⊡ fit</span>
     </button>
-    <button class="tool-chip" @click="emit('export')" title="Export JSON">
+    <button class="tool-chip" @click="emit('export')" title="Export JSON" aria-label="Export as JSON">
       <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
       <span>⇪ export</span>
     </button>
-    <button class="tool-chip" @click="emit('import')" title="Import JSON">
+    <button class="tool-chip" @click="emit('exportpng')" title="Export PNG" aria-label="Export as PNG">
+      <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
+      <span>⬛ png</span>
+    </button>
+    <button class="tool-chip" @click="emit('import')" title="Import JSON" aria-label="Import JSON">
       <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
       <span>⇩ import</span>
     </button>
@@ -42,35 +47,36 @@
     <button ref="aiBtn" class="tool-chip" :class="{ active: G.isAIPanelOpen }"
             :disabled="G.isAnalyzing"
             @click="emit('analyze')"
-            title="Ask AI to analyze your mind map (⌘↵)">
+            title="Ask AI to analyze your mind map (⌘↵)"
+            :aria-label="G.isAnalyzing ? 'AI thinking…' : 'Ask AI to analyze map'">
       <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
       <span>{{ G.isAnalyzing ? '⟳ thinking…' : '✦ ask AI' }}</span>
     </button>
 
     <!-- Tidy layout -->
-    <button class="tool-chip" :class="{ 'chip-thinking': G.isLayouting }" :disabled="G.isLayouting" @click="emit('tidy')" title="AI tidy layout">
+    <button class="tool-chip" :class="{ 'chip-thinking': G.isLayouting }" :disabled="G.isLayouting" @click="emit('tidy')" title="Tidy layout" aria-label="Tidy radial layout">
       <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
       <span v-if="G.isLayouting"><span class="spin-icon">⟳</span> tidying…</span>
       <span v-else>⊹ tidy</span>
     </button>
 
     <!-- Agent selector -->
-    <button class="tool-chip" @click="emit('agent')" title="Choose AI personality">
+    <button class="tool-chip" @click="emit('agent')" title="Choose AI personality" :aria-label="G.activeAgent ? `AI agent: ${G.activeAgent.name}` : 'Choose AI agent'">
       <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
       <span>{{ G.activeAgent ? G.activeAgent.name : '⬡ agent' }}</span>
     </button>
 
     <span class="tool-divider"></span>
 
-    <button class="tool-chip" @click="emit('help')" title="Help">
+    <button class="tool-chip" @click="emit('help')" title="Help" aria-label="Help">
       <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
       <span>? help</span>
     </button>
-    <button class="tool-chip" :class="{ 'key-warn': !hasKey }" @click="emit('settings')" title="API key settings">
+    <button class="tool-chip" :class="{ 'key-warn': !hasKey }" @click="emit('settings')" title="API key settings" :aria-label="hasKey ? 'API key settings' : 'API key required — open settings'">
       <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
       <span>⚙ keys{{ hasKey ? '' : ' !' }}</span>
     </button>
-    <button class="tool-chip danger" @click="doReset" title="Reset board">
+    <button class="tool-chip danger" @click="doReset" title="Reset board" aria-label="Reset board">
       <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
       <span>↻ reset</span>
     </button>
@@ -88,6 +94,7 @@ const { hasKey } = useApiKeys()
 const emit = defineEmits<{
   fit: []
   export: []
+  exportpng: []
   import: []
   help: []
   analyze: []

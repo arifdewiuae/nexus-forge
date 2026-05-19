@@ -1,6 +1,7 @@
 import { runMindMapAnalysis } from '~/lib/ai/graph'
 import type { BoardStreamEvent, SerializedGraph, AgentPersona } from '~/lib/ai/types'
 import { HEADER_FIREWORKS_KEY } from '~/lib/config'
+import { checkRateLimit } from '~/server/utils/rateLimit'
 
 interface RequestBody {
   graph: SerializedGraph
@@ -22,10 +23,22 @@ function resolveApiKey(event: Parameters<typeof getHeader>[0], runtimeKey: strin
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
+  const userKey = getHeader(event, HEADER_FIREWORKS_KEY)?.trim() ?? ''
   const apiKey = resolveApiKey(event, config.fireworksApiKey)
 
   if (!apiKey) {
     throw createError({ statusCode: 401, message: 'No API key configured. Add your Fireworks key in Settings (⚙ keys).' })
+  }
+
+  // Rate limit: key-per-user when they supply their own key, IP-based otherwise
+  const ip = getHeader(event, 'x-forwarded-for')?.split(',')[0].trim()
+    ?? event.node.req.socket?.remoteAddress
+    ?? 'unknown'
+  const rateLimitKey = userKey ? `key:${userKey.slice(-8)}` : `ip:${ip}`
+  const { allowed, remaining } = checkRateLimit(rateLimitKey)
+  setResponseHeader(event, 'X-RateLimit-Remaining', String(remaining))
+  if (!allowed) {
+    throw createError({ statusCode: 429, message: 'Too many requests. Try again in an hour.' })
   }
 
   const body = await readBody<RequestBody>(event)

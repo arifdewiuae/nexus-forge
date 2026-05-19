@@ -513,7 +513,63 @@ function centerOn(id: string) {
 
 const zoomPct = computed(() => Math.round(zoom.value * 100))
 
-defineExpose({ zoomIn, zoomOut, fitView, centerOn, startEdit, zoom, zoomPct })
+async function exportPNG(): Promise<void> {
+  const svgEl = canvasEl.value?.querySelector('svg')
+  if (!svgEl) return
+
+  const w = svgEl.clientWidth || window.innerWidth
+  const h = svgEl.clientHeight || window.innerHeight
+
+  const clone = svgEl.cloneNode(true) as SVGSVGElement
+  clone.setAttribute('width', String(w))
+  clone.setAttribute('height', String(h))
+
+  // Add paper background so PNG isn't transparent
+  const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+  bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%')
+  bg.setAttribute('fill', '#f5f0e8')
+  clone.insertBefore(bg, clone.firstChild)
+
+  // Inline the Caveat/Kalam font so it renders in the exported image
+  const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style')
+  const fontFaces = Array.from(document.styleSheets)
+    .flatMap(s => { try { return Array.from(s.cssRules) } catch { return [] } })
+    .filter(r => r instanceof CSSFontFaceRule)
+    .map(r => r.cssText)
+    .join('\n')
+  styleEl.textContent = fontFaces
+  clone.insertBefore(styleEl, clone.firstChild)
+
+  const svgStr = new XMLSerializer().serializeToString(clone)
+  const blob = new Blob([svgStr], { type: 'image/svg+xml' })
+  const url = URL.createObjectURL(blob)
+
+  await new Promise<void>((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = w * 2; canvas.height = h * 2
+      const ctx = canvas.getContext('2d')!
+      ctx.scale(2, 2)
+      ctx.drawImage(img, 0, 0)
+      URL.revokeObjectURL(url)
+      canvas.toBlob(pngBlob => {
+        if (!pngBlob) { reject(new Error('PNG export failed')); return }
+        const a = document.createElement('a')
+        const safeTitle = (G.title || 'mindmap').replace(/[^a-z0-9_\-]+/gi, '_')
+        a.href = URL.createObjectURL(pngBlob)
+        a.download = `${safeTitle}.png`
+        document.body.appendChild(a); a.click(); a.remove()
+        URL.revokeObjectURL(a.href)
+        resolve()
+      }, 'image/png')
+    }
+    img.onerror = reject
+    img.src = url
+  })
+}
+
+defineExpose({ zoomIn, zoomOut, fitView, centerOn, startEdit, zoom, zoomPct, exportPNG })
 </script>
 
 <style scoped>
