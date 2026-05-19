@@ -1,34 +1,35 @@
-# Nexus Forge — Collaborative AI Whiteboard
+# Nexus Forge — AI Mind Map
 ## Project Plan & Vision
 
 ---
 
 ## What Is This Project?
 
-**Nexus Forge** is a portfolio/demo project showcasing heavy frontend engineering + practical AI.
-It's an infinite-canvas whiteboard where multiple users collaborate in real-time and an AI agent
-analyzes the board and suggests (or auto-applies) structural improvements.
+**Nexus Forge** is a portfolio/demo project showcasing practical AI engineering + frontend depth.
+It is an infinite-canvas mind-map where users build a node graph and a fleet of AI agents analyzes
+the structure, streams their reasoning, and suggests (or auto-applies) improvements.
 
-Think: Figma mini — but with an AI that watches your board and helps organize it.
+Think: a whiteboard assistant where you pick your AI analyst's *personality* and watch it think out loud.
 
 ---
 
 ## Why This Is a Strong Portfolio Demo
 
-Most AI portfolio projects are just chat interfaces — "type a message, see a response." Nexus Forge
-is genuinely different because it combines three things that are hard to do together:
+Most AI portfolio projects are just chat interfaces. Nexus Forge is different because it combines three
+things that are hard to do together:
 
-1. **Real-time collaboration** — live multi-cursor sync with CRDT conflict resolution (complex WebSocket engineering)
-2. **Complex canvas engineering** — custom Fabric.js whiteboard with tools, drag/zoom/pan, sticky notes
-3. **AI that understands visual/spatial structure** — not just text, but positions, groupings, clusters
+1. **Custom SVG canvas** — infinite pan/zoom, drag nodes, draw edges, undo/redo, radial layout
+2. **Multi-agent AI pipeline** — 4 distinct agent personas powered by LangGraph + Fireworks.ai streaming
+3. **Structured AI → canvas actions** — the AI emits typed `MindMapAction` objects that are applied
+   back onto the live graph, not just text suggestions
 
-The **trace view** showing the AI's reasoning step-by-step is a portfolio differentiator that signals
-engineering maturity. And the "Apply Suggestion" feature (AI physically reorganizing the canvas) is a
-wow moment that's hard to forget.
+The **agent selector** (AXIOM-9 / VERN / ORACLE-3 / PATCH) and the **live trace panel** showing the
+AI's personality-driven reasoning are the portfolio differentiator. The "Apply" flow — where the AI
+physically restructures the graph — is the wow moment.
 
-**The sweetest demo:** Drop 10–15 sticky notes of jumbled user research insights, hit "Analyze Board",
-watch the AI stream its reasoning, click Apply — and see it reorganize everything into labeled theme
-clusters with arrows. That's a 30-second demo that makes people ask "how did you build that?"
+**The sweetest demo:** Build a messy mind-map, pick AXIOM-9 ("Cold analyst. Your diagram is a cry for
+help."), hit Analyze, watch it stream dry clinical observations, then click Apply to watch the graph
+restructure itself. 30 seconds. Unforgettable.
 
 ---
 
@@ -36,50 +37,42 @@ clusters with arrows. That's a 30-second demo that makes people ask "how did you
 
 | Use Case | What Happens |
 |---|---|
-| **Team brainstorming** | Drop sticky notes of ideas → AI clusters by theme, labels groups |
-| **Project retrospective** | Team adds "what went wrong" stickies → AI finds patterns, suggests action items |
-| **System design** | Draw rough architecture boxes → AI suggests missing components, connection labels |
-| **UX wireframing** | Sketch screen layouts → AI suggests hierarchy and flow improvements |
-| **Mind mapping** | Messy idea dump → AI structures into a labeled hierarchy |
-| **Workshop facilitation** | Facilitator uses AI to synthesize group outputs live in real-time |
-| **User research synthesis** | Research notes → AI identifies themes, quotes, and key insights |
+| **Brainstorming** | Dump ideas as nodes → AI clusters by theme, labels groups |
+| **Project planning** | Map tasks and dependencies → AI spots gaps, suggests missing links |
+| **System design** | Sketch rough architecture → AI suggests missing components |
+| **Learning** | Build a concept map → AI expands branches with subtopics |
+| **Retrospective** | Map what went wrong → AI finds patterns, suggests action items |
 
 ---
 
-## Final Tech Stack
+## Tech Stack
 
-| Layer             | Technology                                              |
-|-------------------|---------------------------------------------------------|
-| Framework         | Nuxt 3 (Vue 3 + SSR + server routes)                   |
-| Canvas            | Fabric.js 6 + TypeScript                               |
-| Collaboration     | Yjs + y-websocket                                       |
-| AI Orchestration  | LangGraph.js                                            |
-| LLM               | `accounts/fireworks/models/minimax-m2p7` via Fireworks  |
-| UI                | shadcn-vue + Tailwind CSS + Lucide icons                |
-| State             | Pinia + Yjs shared doc                                  |
-| Auth              | None — anonymous share-link boards                      |
-| Deploy            | Vercel (Nuxt) + Fly.io (y-websocket server)            |
+| Layer | Technology |
+|---|---|
+| Framework | Nuxt 3 (Vue 3 + SSR + server routes) |
+| Canvas | Custom SVG mind-map (Vue component) |
+| State | Pinia (`mindMapStore`) |
+| AI Orchestration | LangGraph.js (2-node pipeline: analyzer → suggester) |
+| LLM | `accounts/fireworks/models/minimax-m2p7` via Fireworks.ai |
+| UI | Tailwind CSS + Lucide icons |
+| Auth | None — anonymous share-link boards |
+| Deploy | Vercel (Nuxt) |
 
 ### Key Architecture Decisions
 
-**Why Nuxt 3 (not plain Vite + Vue):**
+**Why Nuxt 3:**
 - Server routes keep `FIREWORKS_API_KEY` server-side only — never exposed to the browser
 - Native Vercel deployment with zero extra config
-- SSR for better Lighthouse / Core Web Vitals scores
-- Server-side streaming SSE maps cleanly to Nuxt's `sendStream` API
+- Server-side SSE maps cleanly to Nuxt's `sendStream` API
 
-**What Yjs / CRDT means in plain English:**
-When two users drag the same shape at the same time, Yjs figures out how to merge both moves without
-conflicts — like Google Docs magic. `y-websocket` is the tiny relay server that routes those changes
-between users. The board ID in the URL doubles as the collaboration room ID.
+**Why a custom SVG canvas (not tldraw or Fabric.js):**
+Custom canvas = more visible portfolio engineering. You wire everything yourself: node drag,
+pan/zoom, edge routing, radial layout, undo/redo stack. That signals more than dropping in a library.
 
-**Why Fly.io (not Render) for the WebSocket server:**
-Render's free tier sleeps after 15 minutes of inactivity — terrible for demos. Fly.io's free tier
-stays always-on globally. The y-websocket server is ~15 lines of Node.js.
-
-**Why Fabric.js (not tldraw):**
-More custom code = more visible portfolio engineering. tldraw is beautiful out-of-the-box but shows
-less skill. Fabric.js lets you wire up everything: custom serialization, Yjs binding, event handling.
+**Dual API key strategy:**
+Users supply their own Fireworks key via the Settings modal (stored in `localStorage`). The server
+can optionally serve as a demo key fallback when `DEMO_KEYS_ENABLED=true` — so the live portfolio
+demo works without requiring visitors to sign up.
 
 ---
 
@@ -92,106 +85,116 @@ nexus-forge/
 │       └── ai/
 │           └── analyze.post.ts      # Fireworks SSE streaming endpoint
 ├── components/
-│   ├── Whiteboard.vue               # Fabric.js canvas wrapper
-│   ├── Toolbar.vue                  # Drawing tools sidebar
-│   ├── AITracePanel.vue             # Live AI reasoning + suggestion cards
-│   ├── CollabPresence.vue           # Multi-cursor / user color avatars
-│   └── SuggestionCard.vue           # Individual suggestion + Apply button
+│   ├── MindMapCanvas.vue            # Custom SVG canvas — nodes, edges, pan/zoom/drag
+│   ├── MindMapToolbar.vue           # Drawing tools + agent selector chips
+│   ├── MindMapHeader.vue            # Title bar, undo/redo, export/import actions
+│   ├── MindMapSideNote.vue          # Collapsible AI trace panel (thinking + suggestions)
+│   └── MindMapModal.vue             # Multi-mode modal: export / import / help / settings
 ├── composables/
-│   ├── useCanvas.ts                 # Fabric.js setup, tool management
-│   ├── useCollaboration.ts          # Yjs doc + y-websocket binding
-│   └── useAIAnalysis.ts             # SSE stream consumer + AbortController
+│   ├── useAIAnalysis.ts             # SSE stream consumer + AbortController
+│   └── useApiKeys.ts                # localStorage key mgmt + demo-key flag
 ├── lib/
-│   ├── config.ts                    # All constants (keys, colors, limits)
+│   ├── config.ts                    # All constants (model ID, rate limits, storage keys)
 │   ├── utils.ts                     # cn() utility for Tailwind class merging
-│   ├── canvas/
-│   │   ├── boardSerializer.ts       # Canvas objects → LLM-friendly JSON
-│   │   ├── suggestionApplier.ts     # BoardAction[] → Fabric.js mutations
-│   │   └── fabricYjsBinding.ts      # Yjs shared map ↔ Fabric.js objects
+│   ├── mindmap/
+│   │   ├── serializer.ts            # MindMapNode[] → SerializedGraph (sent to LLM)
+│   │   ├── serializer.test.ts
+│   │   ├── layout.ts                # Radial layout algorithm (computeRadialLayout)
+│   │   ├── layout.test.ts
+│   │   ├── applier.ts               # MindMapAction[] → store mutations
+│   │   └── applier.test.ts
 │   └── ai/
-│       ├── graph.ts                 # LangGraph workflow definition
-│       ├── types.ts                 # Discriminated unions: BoardStreamEvent, BoardAction
+│       ├── graph.ts                 # LangGraph workflow: analyzerNode → suggesterNode
+│       ├── types.ts                 # MindMapNode, MindMapAction, BoardStreamEvent, AgentPersona
 │       └── nodes/
-│           ├── analyzerNode.ts      # Board pattern / cluster detection
-│           └── suggesterNode.ts     # Typed BoardAction[] output
+│           ├── analyzerNode.ts      # Pattern / cluster detection; streams thinking text
+│           └── suggesterNode.ts     # Typed MindMapAction[] output
 ├── stores/
-│   └── boardStore.ts                # Pinia: active tool, presence, AI state
+│   └── mindMapStore.ts              # Pinia: nodes, crossLinks, undo/redo, AI state, agent
 ├── pages/
-│   ├── index.vue                    # Landing — generate board ID, redirect
+│   ├── index.vue                    # Landing — generate board ID, redirect to /board/[id]
 │   └── board/
-│       └── [id].vue                 # Main whiteboard page
-├── ws-server/
-│   ├── index.ts                     # y-websocket server (~15 lines)
+│       └── [id].vue                 # Main mind-map page (SSR disabled)
+├── ws-server/                       # y-websocket server stub (not deployed — see Future work)
+│   ├── index.ts
 │   ├── package.json
-│   └── fly.toml                     # Fly.io deploy config
+│   └── fly.toml
 ├── nuxt.config.ts
-├── tailwind.config.ts
 ├── .env.local.example
 └── package.json
 ```
 
 ---
 
+## Request Flow (AI Analysis)
+
+```
+pages/board/[id].vue
+  → useAIAnalysis().analyze()
+    → serializeGraph(nodes, title, crossLinks)   [lib/mindmap/serializer.ts]
+    → POST /api/ai/analyze  { graph, agent, userPrompt }
+      → server/api/ai/analyze.post.ts
+          resolves API key (x-fireworks-key header || FIREWORKS_API_KEY if DEMO_KEYS_ENABLED)
+          validates payload (50 KB cap, schema check)
+          rate-limits (in-memory; Upstash Redis in prod)
+          → runMindMapAnalysis(graph, agent, userPrompt, apiKey, emit)
+              → LangGraph: analyzerNode → suggesterNode
+                  analyzerNode: streams "thinking" text as SSE
+                  suggesterNode: emits typed MindMapAction[] as SSE
+              → emits { type: 'done', latencyMs, tokens, costUsd }
+    ← SSE reader in useAIAnalysis
+        'thinking'   → store.thinkingText appended
+        'suggestion' → store.suggestions pushed
+        'done'       → store.analysisResult set; store.isAnalyzing = false
+  → MindMapSideNote.vue renders thinking text + suggestion cards reactively
+  → user clicks "Apply" → applier.ts mutates store (add nodes, link, relabel, tidy layout)
+```
+
+---
+
 ## Development Phases
 
-### Phase 1 — Foundation (Days 1–3)
-**Checkpoint: can draw shapes, add stickies, board lives at a URL**
+### ✅ Phase 1 — Canvas Foundation
+**Checkpoint: can build and edit a mind-map**
 
-1. `npx nuxi init` — Nuxt 3 + TypeScript
-2. Install shadcn-vue, Tailwind CSS, Lucide Vue, Fabric.js 6, Pinia
-3. `pages/index.vue` — generate nanoid board ID, redirect to `/board/[id]`
-4. `pages/board/[id].vue` — layout: Toolbar (left) + Canvas (center) + AITracePanel (right)
-5. `components/Whiteboard.vue` + `composables/useCanvas.ts`
-   - Init Fabric.Canvas on `onMounted` (client-only page, no SSR issues)
-   - Tools: select, freehand draw, rectangle, ellipse, sticky note (IText), text, arrow
-   - Space+drag to pan, Ctrl+Scroll to zoom
-   - Delete key to remove selected objects
-6. `lib/canvas/boardSerializer.ts` — serialize canvas to typed JSON for LLM
-7. `stores/boardStore.ts` — activeTool, isAnalyzing, suggestions, presenceUsers
+- Custom SVG canvas with infinite pan (Space+drag), Ctrl+Scroll zoom
+- Node CRUD: add, rename, delete, drag
+- Edge routing between parent/child nodes and cross-links
+- Radial layout algorithm (`computeRadialLayout`)
+- Undo/redo stack (80 steps)
+- localStorage persistence
+- `stores/mindMapStore.ts` — all reactive graph state
 
-### Phase 2 — AI Core (Days 4–6)
-**Checkpoint: Analyze Board → streaming AI reasoning → Apply reorganizes canvas**
+### ✅ Phase 2 — AI Core
+**Checkpoint: Analyze → streaming reasoning → Apply restructures graph**
 
-1. `lib/ai/types.ts` — discriminated union types for SSE events and board actions
-2. `lib/ai/graph.ts` — LangGraph workflow: analyzerNode → suggesterNode → stream
-3. `server/api/ai/analyze.post.ts` — Nuxt server route
-   - Reads `FIREWORKS_API_KEY` from `useRuntimeConfig()` (server-only)
-   - Accepts `{ boardJson, boardId }` in request body
-   - Streams `BoardStreamEvent` as SSE
-4. `composables/useAIAnalysis.ts` — SSE consumer, AbortController on unmount/new request
-5. `components/AITracePanel.vue` — streams thinking text + renders SuggestionCard list
-6. `lib/canvas/suggestionApplier.ts` — maps `BoardAction` → Fabric.js mutations
+- `lib/ai/types.ts` — `MindMapAction`, `BoardStreamEvent`, `AgentPersona`, `AGENTS`
+- `lib/ai/graph.ts` — LangGraph 2-node workflow
+- `server/api/ai/analyze.post.ts` — server SSE endpoint
+- `composables/useAIAnalysis.ts` — SSE consumer, AbortController
+- `composables/useApiKeys.ts` — user key via localStorage + demo key fallback
+- 4 agent personas with distinct personalities (AXIOM-9, VERN, ORACLE-3, PATCH)
+- `lib/mindmap/applier.ts` — maps `MindMapAction` → store mutations
+- `MindMapSideNote.vue` — live trace panel + suggestion cards
+- `MindMapModal.vue` — export JSON / import JSON / PNG export / settings / help
 
-### Phase 3 — Collaboration (Days 7–9)
-**Checkpoint: same URL in 2 tabs → draw in one, see it live in the other**
+### Phase 3 — Polish & Checklist *(current)*
+**Checkpoint: passes portfolio quality bar, Lighthouse ≥ 95**
 
-1. `ws-server/index.ts` — y-websocket server, room = board ID from URL
-2. `fly.toml` — Fly.io deploy config, single machine, port 1234
-3. `lib/canvas/fabricYjsBinding.ts`
-   - Yjs `Y.Map` keyed by `fabric.Object.id`
-   - Fabric events → update Y.Map; Y.Map observe → update Fabric canvas
-4. `composables/useCollaboration.ts` — init Y.Doc, WebsocketProvider, awareness
-5. `components/CollabPresence.vue` — overlay remote cursors with user color dot
-
-### Phase 4 — Polish + Checklist (Days 10–12)
-**Checkpoint: passes AI_Web_App_Checklist, portfolio-ready**
-
-- `FIREWORKS_API_KEY` only in server runtime config (never `NUXT_PUBLIC_*`)
-- Session HTTP-only cookie for rate limiting (20 req/hour, Upstash Redis in prod)
-- CORS locked to own origin
-- Input validated at route boundary (max board JSON size, no null bytes)
-- Analyze button: idle → animated dots → streaming (Stop button) → done
-- Export PNG (`canvas.toDataURL()`) and JSON download
-- All icon buttons have `aria-label` (Lighthouse accessibility ≥ 95)
+- All interactive elements have `aria-label` (Lighthouse accessibility ≥ 95)
 - Color contrast ≥ 4.5:1 in dark mode
-- Vitest unit tests: `boardSerializer`, `suggestionApplier`, SSE codec
+- CORS locked to own origin
+- Input validated at route boundary (50 KB cap, null bytes rejected)
+- Vitest tests: `useApiKeys.ts`, `server/api/ai/analyze.post.ts` validation guards
+- Existing tests: `serializer.test.ts`, `layout.test.ts`, `applier.test.ts`
 
-### Phase 5 — Deploy (Day 13)
-1. `fly launch` in `ws-server/` — deploy y-websocket to Fly.io
-2. Vercel: link repo, set env vars, deploy Nuxt
-3. Full smoke test: draw → analyze → apply → open second tab → collab works
-4. Record 60s demo GIF for README
-5. Update README: one-command quickstart, env var docs, architecture diagram
+### Phase 4 — Deploy
+**Checkpoint: live URL, smoke test passes**
+
+1. Vercel: link repo, set `FIREWORKS_API_KEY` + `NUXT_PUBLIC_DEMO_KEYS_ENABLED=true`
+2. Full smoke test: build → open → analyze → apply works end-to-end
+3. Record 60s demo GIF for README
+4. Write `README.md`: one-command quickstart, env var docs, architecture diagram, demo GIF
 
 ---
 
@@ -202,10 +205,11 @@ nexus-forge/
 FIREWORKS_API_KEY=fw_...
 
 # .env.local.example — commit this
-FIREWORKS_API_KEY=             # fireworks.ai dashboard → API Keys
-NUXT_PUBLIC_WS_SERVER_URL=     # wss://your-app.fly.dev (after Phase 5 deploy)
+FIREWORKS_API_KEY=                     # fireworks.ai → Settings → API Keys
+DEMO_KEYS_ENABLED=                     # "true" to use server key as demo fallback
+NUXT_PUBLIC_DEMO_KEYS_ENABLED=         # exposes the flag to the browser (boolean only)
 
-# Optional — Vercel prod rate limiting only
+# Optional — Upstash Redis for rate limiting in production
 UPSTASH_REDIS_REST_URL=
 UPSTASH_REDIS_REST_TOKEN=
 ```
@@ -213,41 +217,53 @@ UPSTASH_REDIS_REST_TOKEN=
 In `nuxt.config.ts`:
 ```ts
 runtimeConfig: {
-  fireworksApiKey: '',          // server-only — never exposed to client
+  // FIREWORKS_API_KEY is read directly from process.env in the server route
   public: {
-    wsServerUrl: 'ws://localhost:1234'  // overridden by NUXT_PUBLIC_WS_SERVER_URL
+    wsServerUrl: 'ws://localhost:1234',   // unused until collaboration is added
+    demoKeysEnabled: false,               // overridden by NUXT_PUBLIC_DEMO_KEYS_ENABLED
   }
 }
 ```
 
 ---
 
-## AI Analysis Types
+## AI Types
 
 ```ts
-// Every SSE event from the server is one of these (no magic strings)
+// Every SSE event from the server is one of these
 type BoardStreamEvent =
-  | { type: 'thinking'; text: string }
-  | { type: 'suggestion'; action: BoardAction }
-  | { type: 'done'; latencyMs: number; tokens: number; costUsd: number }
-  | { type: 'error'; message: string }
+  | { type: 'thinking';   text: string }
+  | { type: 'suggestion'; action: MindMapAction }
+  | { type: 'done';       latencyMs: number; tokens: number; costUsd: number }
+  | { type: 'error';      message: string }
 
-// Every action the AI can suggest on the canvas
-type BoardAction =
-  | { kind: 'move';    objectId: string; x: number; y: number }
-  | { kind: 'group';   objectIds: string[]; label: string; x: number; y: number }
-  | { kind: 'label';   objectId: string; text: string }
-  | { kind: 'recolor'; objectId: string; fill: string }
-  | { kind: 'connect'; fromId: string; toId: string }
+// Every action the AI can suggest on the graph
+type MindMapAction =
+  | { kind: 'add_node';      label: string; parentId: string; description?: string }
+  | { kind: 'link_nodes';    fromId: string; toId: string }
+  | { kind: 'relabel';       nodeId: string; label: string }
+  | { kind: 'highlight';     nodeIds: string[]; reason: string }
+  | { kind: 'expand_branch'; parentId: string; children: { label: string; description?: string }[] }
+  | { kind: 'tidy_layout' }
+
+// Agent personality — 4 built-in: AXIOM-9, VERN, ORACLE-3, PATCH
+interface AgentPersona {
+  id: string
+  name: string
+  tagline: string
+  personality: string
+  voiceRules: string
+  accentColor: string
+}
 ```
 
 ---
 
 ## Cost Estimate
 
-- `accounts/fireworks/models/minimax-m2p7` via Fireworks.ai
-- ~$0.03–0.08 per full board analysis
-- Typical board: 500–2,000 tokens in, 300–600 tokens out
+- Model: `accounts/fireworks/models/minimax-m2p7` via Fireworks.ai
+- ~$0.60 / 1M tokens (input + output)
+- Typical board analysis: ~800–2,000 tokens total → **~$0.001–0.002 per analysis**
 
 ---
 
@@ -255,28 +271,30 @@ type BoardAction =
 
 | Checklist Item | Nexus Forge Implementation |
 |---|---|
-| Model ID from env var | `runtimeConfig.fireworksApiKey` (server-only) |
+| Model ID from env var | `process.env.FIREWORKS_API_KEY` (server-only) |
 | SSE discriminated union | `BoardStreamEvent` in `lib/ai/types.ts` |
 | AbortController pattern | `useAIAnalysis.ts` composable |
-| Rate limiting | Session cookie + Upstash Redis |
+| Rate limiting | In-memory `RATE_LIMIT` config; Upstash Redis in prod |
 | Hydration safety | `ssr: false` on board page + `onMounted` for canvas init |
-| Storage keys as constants | `STORAGE_KEYS` in `lib/config.ts` |
-| `next/font` → `@nuxt/fonts` | `display: swap`, no third-party CDN |
-| Lighthouse targets | LCP <2.5s, CLS <0.1, INP <200ms |
-| CI tests | GitHub Actions: `nuxt build` + `vitest run` |
+| Storage keys as constants | `STORAGE_KEYS`, `STORAGE_KEY_API_KEYS` in `lib/config.ts` |
+| Font loading | `globals.css` — no third-party CDN font requests |
+| Lighthouse targets | Accessibility ≥ 95, LCP < 2.5s, CLS < 0.1 |
+| CI tests | `npm test` → vitest run (serializer, layout, applier) |
 | README quickstart | `cp .env.local.example .env.local && npm run dev` |
 
 ---
 
 ## Future Enhancements (post-MVP)
 
-- Voice input for board notes
+- **Real-time collaboration** — Yjs CRDT + y-websocket (ws-server stub is in `ws-server/`);
+  client binding (`composables/useCollaboration.ts`) would sync `mindMapStore` nodes via `Y.Map`
+- Voice input for node labels
 - Version history + AI diff view
 - Template gallery with AI seeding
-- Mobile touch support (Fabric.js has touch APIs)
-- PWA offline shell
+- Mobile touch support
 - More agent nodes: Critic (reviews suggestions), Executor (applies in batches)
+- PWA offline shell
 
 ---
 
-*Plan created: 2026-05-14 | Stack: Nuxt 3 + Fabric.js + LangGraph + Fireworks.ai*
+*Plan updated: 2026-05-19 | Stack: Nuxt 3 + SVG Canvas + LangGraph + Fireworks.ai*

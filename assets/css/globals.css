@@ -12,6 +12,8 @@
   --ink-soft:     #4a5060;
   --muted:        #7a6450;
   --accent:       #c4604a;
+  /* --accent-text is a darkened variant for small (<24 px) text, ensuring 4.5:1 contrast on paper */
+  --accent-text:  #a84f3a;
   --accent-soft:  #faeae3;
   --rule:         rgba(58, 90, 138, 0.07);
   --margin-line:  rgba(196, 96, 74, 0.5);
@@ -255,7 +257,7 @@ html, body {
   line-height: 1.4;
 }
 .side-breadcrumb-link { cursor: pointer; border-bottom: 1px dotted transparent; }
-.side-breadcrumb-link:hover { color: var(--accent); border-bottom-color: var(--accent); }
+.side-breadcrumb-link:hover { color: var(--accent-text); border-bottom-color: var(--accent-text); }
 .side-section { font-family: 'Caveat', cursive; font-size: 22px; color: var(--ink); margin: 14px 0 4px 0; }
 .side-children { list-style: none; padding: 0; margin: 0; font-size: 20px; font-family: 'Caveat', cursive; color: var(--ink); }
 .side-children li { cursor: pointer; margin-bottom: 2px; line-height: 1.15; padding: 1px 4px; border-radius: 4px; }
@@ -414,7 +416,7 @@ html, body {
   line-height: 1.1;
 }
 .modal-action:hover { background: var(--ink); color: var(--paper-card); }
-.modal-action.primary { background: var(--accent); border-color: var(--accent); color: var(--paper-card); }
+.modal-action.primary { background: var(--accent-text); border-color: var(--accent-text); color: var(--paper-card); }
 .modal-action.primary:hover { filter: brightness(0.85); }
 .modal-action.danger { border-color: #e05a5a; color: #e05a5a; }
 .modal-action.danger:hover { background: #e05a5a; color: var(--paper-card); }
@@ -444,7 +446,7 @@ html, body {
 .ai-panel-header.dragging { cursor: grabbing; }
 .ai-drag-bar { width: 36px; height: 3px; background: var(--ink); opacity: 0.15; border-radius: 2px; margin: 0 auto 10px; }
 .ai-panel-title { font-family: 'Caveat', cursive; font-size: 28px; color: var(--ink); margin: 0 0 6px 0; font-weight: 700; }
-.ai-panel-agent { font-family: 'Caveat', cursive; font-size: 18px; color: var(--accent); margin: 0; }
+.ai-panel-agent { font-family: 'Caveat', cursive; font-size: 18px; color: var(--accent-text); margin: 0; }
 .ai-thinking { font-family: 'Kalam', cursive; font-size: 14px; color: var(--ink-soft); line-height: 1.55; max-height: 180px; overflow-y: auto; margin-top: 12px; }
 .ai-thinking--empty { color: var(--muted); font-style: italic; }
 .ai-thinking hr { border: none; border-top: 1px dashed var(--muted); margin: 8px 0; }
@@ -455,7 +457,7 @@ html, body {
 .ai-suggestion-kind { font-family: 'Caveat', cursive; font-size: 16px; color: var(--muted); }
 .ai-suggestion-text { font-family: 'Kalam', cursive; font-size: 14px; color: var(--ink); margin: 2px 0 6px; }
 .ai-suggestion-item .ai-suggestion-actions { margin-top: 2px; }
-.ai-suggestion-btn { font-family: 'Caveat', cursive; font-size: 18px; background: transparent; border: 1.4px solid var(--accent); color: var(--accent); padding: 2px 12px; border-radius: 16px; cursor: pointer; }
+.ai-suggestion-btn { font-family: 'Caveat', cursive; font-size: 18px; background: transparent; border: 1.4px solid var(--accent); color: var(--accent-text); padding: 2px 12px; border-radius: 16px; cursor: pointer; }
 .ai-suggestion-btn:hover { background: var(--accent); color: var(--paper-card); }
 .ai-close-btn { position: absolute; top: 10px; right: 12px; font-family: 'Caveat', cursive; font-size: 22px; color: var(--muted); background: transparent; border: none; cursor: pointer; line-height: 1; z-index: 1; }
 .ai-close-btn:hover { color: var(--accent); }

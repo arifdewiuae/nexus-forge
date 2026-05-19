@@ -1,12 +1,14 @@
 <template>
-  <div v-if="open" class="modal-backdrop" @click="onBackdrop">
+  <div v-if="open" class="modal-backdrop" @click="onBackdrop"
+       role="dialog" aria-modal="true"
+       :aria-label="modalLabel">
     <div class="modal">
 
       <!-- Export -->
       <template v-if="mode === 'export'">
         <h2>your mind map · as JSON</h2>
         <p>copy this anywhere, or save it as a file.</p>
-        <textarea ref="textarea" v-model="text" spellcheck="false"></textarea>
+        <textarea ref="textarea" v-model="text" spellcheck="false" aria-label="Exported mind map JSON"></textarea>
         <div class="modal-actions">
           <span class="modal-status" :class="status.kind">{{ status.text }}</span>
           <button class="modal-action" @click="copyToClipboard">copy</button>
@@ -20,7 +22,7 @@
       <template v-else-if="mode === 'import'">
         <h2>paste JSON to import</h2>
         <p>this replaces the current board. undo will get it back.</p>
-        <textarea ref="textarea" v-model="text" placeholder='{ "title": "…", "nodes": [ … ] }' spellcheck="false"></textarea>
+        <textarea ref="textarea" v-model="text" placeholder='{ "title": "…", "nodes": [ … ] }' spellcheck="false" aria-label="Paste JSON to import"></textarea>
         <div class="modal-actions">
           <span class="modal-status" :class="status.kind">{{ status.text }}</span>
           <button class="modal-action" @click="emit('close')">cancel</button>
@@ -51,8 +53,10 @@
             placeholder="fw_..."
             spellcheck="false"
             autocomplete="off"
+            aria-label="Fireworks API key"
           />
-          <button class="key-toggle" @click="showKey = !showKey" :title="showKey ? 'Hide' : 'Show'">
+          <button class="key-toggle" @click="showKey = !showKey"
+                  :aria-label="showKey ? 'Hide API key' : 'Show API key'">
             {{ showKey ? '○' : '●' }}
           </button>
         </div>
@@ -95,7 +99,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useMindMapStore } from '~/stores/mindMapStore'
 import { useApiKeys } from '~/composables/useApiKeys'
 
@@ -110,6 +114,17 @@ const textarea = ref<HTMLTextAreaElement | null>(null)
 const { fireworksKey, save: saveKey, clear: clearKey } = useApiKeys()
 const keyDraft = ref('')
 const showKey = ref(false)
+
+const modalLabel = computed(() => {
+  switch (props.mode) {
+    case 'export':   return 'Export mind map'
+    case 'import':   return 'Import mind map'
+    case 'confirm':  return 'Confirm clear board'
+    case 'settings': return 'API key settings'
+    case 'help':     return 'Quick tour'
+    default:         return 'Dialog'
+  }
+})
 
 watch(() => props.open, (v) => {
   if (!v) return

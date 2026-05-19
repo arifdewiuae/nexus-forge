@@ -4,6 +4,8 @@
       <span ref="titleEl"
             class="header-title"
             contenteditable="plaintext-only"
+            role="textbox"
+            aria-label="Board title"
             spellcheck="false"
             @blur="commitTitle"
             @keydown="onTitleKey"></span>

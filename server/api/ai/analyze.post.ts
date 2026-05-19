@@ -45,13 +45,19 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'Missing graph in request body.' })
   }
 
+  const serialized = JSON.stringify(body)
+
+  if (serialized.includes('\u0000')) {
+    throw createError({ statusCode: 400, message: 'Request contains invalid characters.' })
+  }
+
   const { graph, agent, userPrompt } = body
 
   if (graph.nodeCount === 0 && !userPrompt?.trim()) {
     throw createError({ statusCode: 400, message: 'Add some nodes or write a prompt before asking AI.' })
   }
 
-  if (JSON.stringify(graph).length > 50_000) {
+  if (serialized.length > 50_000) {
     throw createError({ statusCode: 400, message: 'Mind map is too large to analyze (max 50 KB).' })
   }
 

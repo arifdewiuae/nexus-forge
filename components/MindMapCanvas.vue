@@ -1,5 +1,7 @@
 <template>
   <div ref="canvasEl" :class="canvasClass"
+       role="application"
+       aria-label="Mind map canvas — drag to pan, scroll to zoom, double-click a node to rename"
        @wheel.prevent="onWheel"
        @pointerdown="onCanvasPointerDown"
        @pointermove="onCanvasPointerMove">
@@ -88,8 +90,13 @@
 
           <!-- Node body -->
           <g filter="url(#wobble)" class="node-rect"
+             role="button"
+             :aria-label="node.label"
+             tabindex="0"
              @pointerdown="(e) => onNodePointerDown(e, node)"
-             @dblclick="(e) => onNodeDblClick(e, node)">
+             @dblclick="(e) => onNodeDblClick(e, node)"
+             @keydown.enter="(e) => { G.selectedId = node.id; startEdit(node) }"
+             @keydown.delete="() => G.deleteSubtree(node.id)">
             <path :d="decorOf(node).path0"
                   fill="var(--paper-card)"
                   :stroke="G.selectedId === node.id ? 'var(--accent)' : '#1f2533'"
@@ -126,6 +133,7 @@
            class="label-editor"
            :style="editorStyle"
            v-model="draftLabel"
+           aria-label="Edit node label"
            @keydown="onEditorKey"
            @blur="commitLabelEditor(true)"
            @pointerdown.stop
