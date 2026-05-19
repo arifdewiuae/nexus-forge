@@ -1,9 +1,12 @@
 import type { BoardStreamEvent } from '~/lib/ai/types'
 import { serializeGraph } from '~/lib/mindmap/serializer'
+import { HEADER_FIREWORKS_KEY } from '~/lib/config'
+import { useApiKeys } from '~/composables/useApiKeys'
 
 export function useAIAnalysis() {
   const store = useMindMapStore()
   const abortController = ref<AbortController | null>(null)
+  const { fireworksKey } = useApiKeys()
 
   function abort(): void {
     abortController.value?.abort()
@@ -21,9 +24,12 @@ export function useAIAnalysis() {
     try {
       const graph = serializeGraph(store.nodes, store.title, store.crossLinks)
 
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (fireworksKey.value) headers[HEADER_FIREWORKS_KEY] = fireworksKey.value
+
       const response = await fetch('/api/ai/analyze', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ graph, agent: store.activeAgent, userPrompt: store.userPrompt }),
         signal: controller.signal,
       })

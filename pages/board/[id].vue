@@ -8,8 +8,8 @@ const toolbarRef = ref<{ aiBtn: HTMLButtonElement | null } | null>(null)
 
 const G = useMindMapStore()
 
-const modal = ref<{ open: boolean; mode: 'export' | 'import' | 'help' | 'confirm' | null }>({ open: false, mode: null })
-function openModal(mode: 'export' | 'import' | 'help' | 'confirm') { modal.value = { open: true, mode } }
+const modal = ref<{ open: boolean; mode: 'export' | 'import' | 'help' | 'confirm' | 'settings' | null }>({ open: false, mode: null })
+function openModal(mode: 'export' | 'import' | 'help' | 'confirm' | 'settings') { modal.value = { open: true, mode } }
 function closeModal() { modal.value = { open: false, mode: null } }
 
 function handleConfirmedReset() {
@@ -101,8 +101,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 /* ---- AI analysis ---- */
 const { analyze, abort } = useAIAnalysis()
+const { hasKey } = useApiKeys()
 
 async function handleAnalyze() {
+  if (!hasKey.value) { openModal('settings'); return }
   if (!G.activeAgent) { showAgentSelector.value = true; return }
   computePanelAnchor()
   G.openAIPanel()
@@ -155,6 +157,7 @@ function onAccentChange(color: string) {
         @agent="showAgentSelector = true"
         @tidy="handleTidy"
         @reset="openModal('confirm')"
+        @settings="openModal('settings')"
       />
       <MindMapSideNote
         @center-on="(id) => canvasRef?.centerOn(id)"

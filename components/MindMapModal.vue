@@ -37,6 +37,33 @@
         </div>
       </template>
 
+      <!-- Settings / API key -->
+      <template v-else-if="mode === 'settings'">
+        <h2>your API key</h2>
+        <p>stored only in your browser — never sent to our server.</p>
+        <div class="key-row">
+          <input
+            class="key-input"
+            :type="showKey ? 'text' : 'password'"
+            v-model="keyDraft"
+            placeholder="fw_..."
+            spellcheck="false"
+            autocomplete="off"
+          />
+          <button class="key-toggle" @click="showKey = !showKey" :title="showKey ? 'Hide' : 'Show'">
+            {{ showKey ? '○' : '●' }}
+          </button>
+        </div>
+        <p class="key-hint">
+          get a key at
+          <a href="https://app.fireworks.ai/settings/users/api-keys" target="_blank" rel="noopener noreferrer">fireworks.ai ↗</a>
+        </p>
+        <div class="modal-actions">
+          <button class="modal-action" :disabled="!fireworksKey" @click="clearKey(); emit('close')">clear key</button>
+          <button class="modal-action primary" :disabled="!keyDraft.trim()" @click="saveKey(keyDraft); emit('close')">save</button>
+        </div>
+      </template>
+
       <!-- Help -->
       <template v-else-if="mode === 'help'">
         <h2>quick tour</h2>
@@ -68,14 +95,19 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
 import { useMindMapStore } from '~/stores/mindMapStore'
+import { useApiKeys } from '~/composables/useApiKeys'
 
-const props = defineProps<{ open: boolean; mode: 'export' | 'import' | 'help' | 'confirm' | null }>()
+const props = defineProps<{ open: boolean; mode: 'export' | 'import' | 'help' | 'confirm' | 'settings' | null }>()
 const emit = defineEmits<{ close: []; fit: []; confirm: [] }>()
 const G = useMindMapStore()
 
 const text = ref('')
 const status = ref({ kind: '', text: '' })
 const textarea = ref<HTMLTextAreaElement | null>(null)
+
+const { fireworksKey, save: saveKey, clear: clearKey } = useApiKeys()
+const keyDraft = ref('')
+const showKey = ref(false)
 
 watch(() => props.open, (v) => {
   if (!v) return
@@ -86,6 +118,9 @@ watch(() => props.open, (v) => {
   } else if (props.mode === 'import') {
     text.value = ''
     nextTick(() => textarea.value?.focus())
+  } else if (props.mode === 'settings') {
+    keyDraft.value = fireworksKey.value
+    showKey.value = false
   }
 })
 

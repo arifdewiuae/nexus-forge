@@ -66,6 +66,10 @@
       <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
       <span>? help</span>
     </button>
+    <button class="tool-chip" :class="{ 'key-warn': !hasKey }" @click="emit('settings')" title="API key settings">
+      <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
+      <span>⚙ keys{{ hasKey ? '' : ' !' }}</span>
+    </button>
     <button class="tool-chip danger" @click="doReset" title="Reset board">
       <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
       <span>↻ reset</span>
@@ -76,8 +80,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useMindMapStore } from '~/stores/mindMapStore'
+import { useApiKeys } from '~/composables/useApiKeys'
 
 const G = useMindMapStore()
+const { hasKey } = useApiKeys()
 
 const emit = defineEmits<{
   fit: []
@@ -88,6 +94,7 @@ const emit = defineEmits<{
   agent: []
   tidy: []
   reset: []
+  settings: []
 }>()
 
 const aiBtn = ref<HTMLButtonElement | null>(null)

@@ -39,6 +39,9 @@ export const RATE_LIMIT = {
 
 export const WS_ROOM_PREFIX = 'nf:'
 
+export const HEADER_FIREWORKS_KEY = 'x-fireworks-key'
+export const STORAGE_KEY_API_KEYS = 'nf:api-keys'
+
 export const PRESENCE_COLORS = [
   '#ef4444', '#f97316', '#eab308', '#22c55e',
   '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4',
