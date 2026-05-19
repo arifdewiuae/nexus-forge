@@ -1,3 +1,4 @@
+import { computeRadialLayout } from '~/lib/mindmap/layout'
 import type { MindMapAction } from '~/lib/ai/types'
 
 interface GraphStore {
@@ -11,6 +12,7 @@ interface GraphStore {
   setLabel(id: string, label: string): void
   setHighlighted(ids: string[]): void
   clearHighlights(): void
+  applyLayout(positions: { id: string; x: number; y: number }[]): void
   nodes: { id: string; x: number; y: number; label: string; parent: string | null }[]
 }
 
@@ -49,6 +51,12 @@ export function applyAction(store: GraphStore, action: MindMapAction): void {
       }
       // addChild triggers editingId on each call; clear it so no node auto-enters edit mode
       store.editingId = null
+      break
+    }
+
+    case 'tidy_layout': {
+      const positions = computeRadialLayout(store.nodes)
+      store.applyLayout(positions)
       break
     }
   }

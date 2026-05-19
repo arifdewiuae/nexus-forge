@@ -10,6 +10,7 @@ Return ONLY a valid JSON array. Each element must match exactly one of these sha
 { "kind": "relabel",       "nodeId": "<existing-id>", "label": "<new label string>" }
 { "kind": "highlight",     "nodeIds": ["<id>", ...], "reason": "<one sentence why these nodes need attention>" }
 { "kind": "expand_branch", "parentId": "<existing-id>", "children": [{ "label": "<string>", "description": "<optional>" }] }
+{ "kind": "tidy_layout" }
 
 Rules:
 - Only reference IDs that actually appear in the graph JSON
@@ -19,6 +20,7 @@ Rules:
 - "relabel": use only when a label is genuinely vague ("stuff", "things", "node 3")
 - "highlight": use to flag orphaned nodes, circular dependencies, or "chaos blockers" — things blocking progress
 - "expand_branch": use to generate a useful subtree when a node is suspiciously empty
+- "tidy_layout": use when the graph looks spatially cluttered or nodes are overlapping — triggers an automatic radial re-layout
 - Return ONLY the JSON array — no prose, no markdown fences, no explanation`
 
 function isMindMapAction(value: unknown): value is MindMapAction {
@@ -30,6 +32,7 @@ function isMindMapAction(value: unknown): value is MindMapAction {
     case 'relabel':       return typeof obj.nodeId === 'string' && typeof obj.label === 'string'
     case 'highlight':     return Array.isArray(obj.nodeIds) && typeof obj.reason === 'string'
     case 'expand_branch': return typeof obj.parentId === 'string' && Array.isArray(obj.children)
+    case 'tidy_layout':   return true
     default:              return false
   }
 }

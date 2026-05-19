@@ -43,6 +43,7 @@ export type MindMapAction =
   | { kind: 'relabel';       nodeId: string; label: string }
   | { kind: 'highlight';     nodeIds: string[]; reason: string }
   | { kind: 'expand_branch'; parentId: string; children: { label: string; description?: string }[] }
+  | { kind: 'tidy_layout' }
 
 /** SSE events streamed from /api/ai/analyze */
 export type BoardStreamEvent =
