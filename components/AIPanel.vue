@@ -89,13 +89,22 @@
 
       <!-- ── IDEAS TAB ── -->
       <div v-else class="ai-tab-body ai-tab-body--ideas">
-        <!-- Streaming thinking text -->
-        <div
-          v-if="G.streamingThinking"
-          class="ai-thinking"
-          ref="thinkingEl"
-          v-html="renderMarkdown(G.streamingThinking)"
-        ></div>
+        <!-- Reasoning text (live during stream, persists after done) -->
+        <div v-if="thinkingText" class="ai-thinking-section">
+          <button
+            v-if="!G.isAnalyzing"
+            class="ai-thinking-toggle"
+            @click="thinkingCollapsed = !thinkingCollapsed"
+          >
+            {{ thinkingCollapsed ? '▶ show reasoning' : '▼ reasoning' }}
+          </button>
+          <div
+            v-show="G.isAnalyzing || !thinkingCollapsed"
+            class="ai-thinking"
+            ref="thinkingEl"
+            v-html="renderMarkdown(thinkingText)"
+          ></div>
+        </div>
         <div v-else-if="!G.isAnalyzing && !G.suggestions.length" class="ai-thinking ai-thinking--empty">
           No ideas yet — switch to the <strong>input</strong> tab and hit <em>build map</em>.
         </div>
@@ -167,9 +176,16 @@ const thinkingEl = ref<HTMLElement | null>(null)
 const view = ref<'input' | 'ideas'>('input')
 const hasResults = computed(() => G.suggestions.length > 0 || !!G.analysisResult)
 
-// Auto-switch to ideas when analysis starts; stay there when done
+// Prefer the live stream while analyzing; fall back to the captured result once done.
+// This ensures the reasoning text stays visible after the stream ends.
+const thinkingText = computed(
+  () => G.streamingThinking || G.analysisResult?.thinking || ''
+)
+const thinkingCollapsed = ref(false)
+
+// Auto-switch to ideas when analysis starts; reset collapse so reasoning streams visibly
 watch(() => G.isAnalyzing, (analyzing) => {
-  if (analyzing) view.value = 'ideas'
+  if (analyzing) { view.value = 'ideas'; thinkingCollapsed.value = false }
 })
 
 /* ---- Submit handlers ---- */
@@ -582,6 +598,31 @@ function describeAction(action: MindMapAction): string {
   color: var(--muted);
   text-align: right;
   margin-top: -4px;
+}
+
+/* ---- Thinking section ---- */
+.ai-thinking-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-thinking-toggle {
+  font-family: 'Caveat', cursive;
+  font-size: 14px;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  align-self: flex-start;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.ai-thinking-toggle:hover {
+  color: var(--accent);
 }
 
 /* ---- Ideas tab ---- */
