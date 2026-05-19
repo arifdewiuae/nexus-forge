@@ -11,6 +11,7 @@
           <span class="modal-status" :class="status.kind">{{ status.text }}</span>
           <button class="modal-action" @click="copyToClipboard">copy</button>
           <button class="modal-action" @click="download">download .json</button>
+          <button class="modal-action" @click="emit('exportpng'); emit('close')">↓ png</button>
           <button class="modal-action primary" @click="emit('close')">done</button>
         </div>
       </template>
@@ -98,7 +99,7 @@ import { useMindMapStore } from '~/stores/mindMapStore'
 import { useApiKeys } from '~/composables/useApiKeys'
 
 const props = defineProps<{ open: boolean; mode: 'export' | 'import' | 'help' | 'confirm' | 'settings' | null }>()
-const emit = defineEmits<{ close: []; fit: []; confirm: [] }>()
+const emit = defineEmits<{ close: []; fit: []; confirm: []; exportpng: [] }>()
 const G = useMindMapStore()
 
 const text = ref('')

@@ -32,11 +32,7 @@
       <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
       <span>⇪ export</span>
     </button>
-    <button class="tool-chip" @click="emit('exportpng')" title="Export PNG" aria-label="Export as PNG">
-      <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
-      <span>↓ png</span>
-    </button>
-    <button class="tool-chip" @click="emit('import')" title="Import JSON" aria-label="Import JSON">
+<button class="tool-chip" @click="emit('import')" title="Import JSON" aria-label="Import JSON">
       <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
       <span>⇩ import</span>
     </button>
@@ -94,7 +90,6 @@ const { hasKey } = useApiKeys()
 const emit = defineEmits<{
   fit: []
   export: []
-  exportpng: []
   import: []
   help: []
   analyze: []

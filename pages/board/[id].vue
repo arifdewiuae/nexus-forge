@@ -151,7 +151,6 @@ function onAccentChange(color: string) {
         ref="toolbarRef"
         @fit="canvasRef?.fitView()"
         @export="openModal('export')"
-        @exportpng="canvasRef?.exportPNG()"
         @import="openModal('import')"
         @help="openModal('help')"
         @analyze="handleAnalyze"
@@ -217,6 +216,7 @@ function onAccentChange(color: string) {
         @close="closeModal"
         @fit="canvasRef?.fitView()"
         @confirm="handleConfirmedReset"
+        @exportpng="canvasRef?.exportPNG()"
       />
     </ClientOnly>
   </div>
