@@ -520,32 +520,62 @@ async function exportPNG(): Promise<void> {
   const w = svgEl.clientWidth || window.innerWidth
   const h = svgEl.clientHeight || window.innerHeight
 
-  const clone = svgEl.cloneNode(true) as SVGSVGElement
-  clone.setAttribute('width', String(w))
-  clone.setAttribute('height', String(h))
-
-  // Add paper background
-  const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
-  bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%')
-  bg.setAttribute('fill', '#faf6ec')
-  clone.insertBefore(bg, clone.firstChild)
-
-  // Inline @font-face rules so text renders in the exported image
-  const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style')
-  const fontFaces = Array.from(document.styleSheets)
-    .flatMap(s => { try { return Array.from(s.cssRules) } catch { return [] } })
-    .filter(r => r instanceof CSSFontFaceRule)
-    .map(r => r.cssText)
-    .join('\n')
-  styleEl.textContent = fontFaces
-  clone.insertBefore(styleEl, clone.firstChild)
-
-  // Resolve CSS custom properties — SVG blobs don't have access to the page's CSS context
+  // Resolve CSS custom properties up front
   const rootStyle = getComputedStyle(document.documentElement)
   const cssVars: Record<string, string> = {}
   for (const prop of ['--paper-card', '--ink', '--ink-soft', '--accent', '--accent-soft', '--muted']) {
     cssVars[prop] = rootStyle.getPropertyValue(prop).trim()
   }
+  const ink = cssVars['--ink'] || '#1f2533'
+  const accent = cssVars['--accent'] || '#c4604a'
+
+  const clone = svgEl.cloneNode(true) as SVGSVGElement
+  clone.setAttribute('width', String(w))
+  clone.setAttribute('height', String(h))
+
+  // Inline .node-text class attributes — CSS classes aren't available in blob scope
+  for (const el of clone.querySelectorAll('text.node-text')) {
+    el.setAttribute('text-anchor', 'middle')
+    el.setAttribute('dominant-baseline', 'middle')
+    el.setAttribute('font-family', 'Caveat, cursive')
+    el.setAttribute('fill', el.classList.contains('selected') ? accent : ink)
+    el.removeAttribute('class')
+  }
+
+  // Add paper background
+  const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+  bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%')
+  bg.setAttribute('fill', cssVars['--paper-card'] || '#fdfaf2')
+  clone.insertBefore(bg, clone.firstChild)
+
+  // Fetch @font-face URLs and embed as base64 so fonts render in the blob context
+  const fontRules = Array.from(document.styleSheets)
+    .flatMap(s => { try { return Array.from(s.cssRules) } catch { return [] } })
+    .filter(r => r instanceof CSSFontFaceRule)
+    .map(r => r.cssText)
+
+  const embeddedFonts: string[] = []
+  for (const rule of fontRules) {
+    const m = rule.match(/url\(["']?(https?:[^"')]+)["']?\)/)
+    if (!m) { embeddedFonts.push(rule); continue }
+    try {
+      const buf = await fetch(m[1]).then(r => r.arrayBuffer())
+      let binary = ''
+      const bytes = new Uint8Array(buf)
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+      const b64 = btoa(binary)
+      const mime = m[1].includes('woff2') ? 'font/woff2' : 'font/woff'
+      embeddedFonts.push(rule.replace(m[0], `url(data:${mime};base64,${b64})`))
+    } catch {
+      embeddedFonts.push(rule)
+    }
+  }
+
+  const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style')
+  styleEl.textContent = embeddedFonts.join('\n')
+  clone.insertBefore(styleEl, clone.firstChild)
+
+  // Resolve remaining CSS variable references in attributes
   let svgStr = new XMLSerializer().serializeToString(clone)
   svgStr = svgStr.replace(/var\(\s*(--[a-z-]+)\s*\)/g, (_, name) => cssVars[name] ?? '#000')
 
