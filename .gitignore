@@ -16,6 +16,9 @@ logs
 .DS_Store
 Thumbs.db
 
+# Vercel
+.vercel
+
 # Editor
 .vscode
 .idea
