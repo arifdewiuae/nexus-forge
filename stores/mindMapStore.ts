@@ -14,8 +14,6 @@ import { useGraphStore }    from './useGraphStore'
 import { useAIStore }       from './useAIStore'
 import { useSettingsStore } from './useSettingsStore'
 
-export { useGraphStore, useAIStore, useSettingsStore }
-
 export const useMindMapStore = defineStore('mindMap', () => {
   const graph    = useGraphStore()
   const ai       = useAIStore()
