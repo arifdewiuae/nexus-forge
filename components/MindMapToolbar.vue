@@ -174,18 +174,17 @@ function doReset() {
   .chip-icon { display: inline; position: relative; z-index: 1; }
 }
 
-/* Desktop-only elements hidden on mobile */
-.desktop-only { display: none; }
-
-/* Mobile-only elements hidden on desktop */
-.mobile-only { display: none; }
-
-@media (min-width: 801px) {
-  .desktop-only { display: revert; }
+/* Desktop-only elements: hidden on mobile, shown on desktop */
+@media (max-width: 800px) {
+  .desktop-only { display: none; }
 }
 
+/* Mobile-only elements: shown on mobile, hidden on desktop */
+.mobile-only { display: none; }
 @media (max-width: 800px) {
-  .mobile-only { display: revert; }
+  .mobile-only { display: inline-flex; }
+  button.mobile-only { display: inline-flex; }
+  div.mobile-only { display: block; }
 }
 
 /* Toolbar positioning on mobile */
