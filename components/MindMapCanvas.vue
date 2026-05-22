@@ -146,6 +146,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useMindMapStore } from '~/stores/mindMapStore'
+import { useTouchGestures } from '~/composables/useTouchGestures'
+import { nodeSize, rotFor, sketchRectPath, edgePath } from '~/lib/mindmap/geometry'
+import { exportPng } from '~/lib/mindmap/exportPng'
 import type { MindMapNode } from '~/lib/ai/types'
 
 const G = useMindMapStore()
@@ -163,6 +166,22 @@ function updateVpSize() {
   vpSize.value = { w: window.innerWidth, h: window.innerHeight }
 }
 
+function onLongPressOnCanvas(clientX: number, clientY: number) {
+  const w = screenToWorld(clientX, clientY)
+  // Find node near the long-press point (within 80px world units)
+  const hit = G.nodes.find(n => Math.hypot(n.x - w.x, n.y - w.y) < 80)
+  if (hit) {
+    G.selectedId = hit.id
+    startEdit(hit)
+  }
+}
+
+const touchGestures = useTouchGestures(
+  canvasEl,
+  { pan, zoom },
+  onLongPressOnCanvas,
+)
+
 onMounted(() => {
   updateVpSize()
   window.addEventListener('resize', updateVpSize)
@@ -171,6 +190,7 @@ onMounted(() => {
     y: Math.min(window.innerHeight / 2 + 60, window.innerHeight - 200),
   }
   requestAnimationFrame(() => fitView())
+  touchGestures.attach()
 })
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateVpSize)
@@ -178,6 +198,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('pointerup', onPanUp)
   window.removeEventListener('pointermove', onNodeMove)
   window.removeEventListener('pointerup', onNodeUp)
+  touchGestures.detach()
 })
 
 function worldToScreen(wx: number, wy: number) {
@@ -188,61 +209,7 @@ function screenToWorld(sx: number, sy: number) {
 }
 const transform = computed(() => `translate(${pan.value.x} ${pan.value.y}) scale(${zoom.value})`)
 
-/* ---- geometry helpers ---- */
-function rotFor(id: string): number {
-  let h = 0
-  for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) & 0xfffff
-  return ((h % 9) - 4) * 0.7
-}
-
-// Approximate character width ratio for Kalam (handwriting font)
-const CHAR_W = 0.52
-
-function nodeSize(node: MindMapNode, level: number) {
-  const label = node.label || ''
-  const len = Math.max(1, label.length)
-  if (level === 0) {
-    // Root: let width grow for long labels, then fit font to width
-    const w = Math.max(240, Math.min(400, Math.round(len * 14 + 60)))
-    const fontSize = Math.min(42, Math.max(18, Math.floor((w - 40) / (len * CHAR_W))))
-    return { w, h: 96, fontSize, radius: 30 }
-  }
-  if (level === 1) {
-    const w = Math.max(160, Math.min(320, Math.round(len * 18 + 40)))
-    const fontSize = Math.min(30, Math.max(14, Math.floor((w - 34) / (len * CHAR_W))))
-    return { w, h: 60, fontSize, radius: 22 }
-  }
-  const w = Math.max(130, Math.min(280, Math.round(len * 14 + 34)))
-  const fontSize = Math.min(22, Math.max(12, Math.floor((w - 28) / (len * CHAR_W))))
-  return { w, h: 48, fontSize, radius: 18 }
-}
-
-function underlinePath(w: number, h: number): string {
-  const seg = Math.round(Math.max(28, Math.min(48, (w - 20) / 4)))
-  const x0 = -(seg * 4) / 2
-  const y0 = h / 2 + 9
-  return `M ${x0} ${y0} q ${seg * 0.5} -4 ${seg} 1 t ${seg} -1 t ${seg} 1 t ${seg} -1`
-}
-
-function sketchRectPath(x: number, y: number, w: number, h: number, r: number, j: number): string {
-  return `M ${x+r+j} ${y-j}
-          L ${x+w-r-j} ${y+j}
-          Q ${x+w} ${y}, ${x+w+j} ${y+r-j}
-          L ${x+w-j} ${y+h-r+j}
-          Q ${x+w} ${y+h}, ${x+w-r+j} ${y+h+j}
-          L ${x+r-j} ${y+h-j}
-          Q ${x} ${y+h}, ${x-j} ${y+h-r+j}
-          L ${x+j} ${y+r-j}
-          Q ${x} ${y}, ${x+r-j} ${y+j} Z`
-}
-
-function edgePath(a: MindMapNode, b: MindMapNode, dir: number): string {
-  const dx = b.x - a.x, dy = b.y - a.y
-  const len = Math.hypot(dx, dy) || 1
-  const nx = -dy / len, ny = dx / len
-  const s = dir
-  return `M ${a.x} ${a.y} C ${a.x + dx * 0.35 + nx * 22 * s} ${a.y + dy * 0.35 + ny * 22 * s}, ${a.x + dx * 0.65 + nx * 20 * s} ${a.y + dy * 0.65 + ny * 20 * s}, ${b.x} ${b.y}`
-}
+/* ---- geometry helpers (imported from lib/mindmap/geometry.ts) ---- */
 
 /* ---- new edge set (for draw animation) ---- */
 const newEdgeIds = ref(new Set<string>())
@@ -524,95 +491,7 @@ const zoomPct = computed(() => Math.round(zoom.value * 100))
 async function exportPNG(): Promise<void> {
   const svgEl = canvasEl.value?.querySelector('svg')
   if (!svgEl) return
-
-  const w = svgEl.clientWidth || window.innerWidth
-  const h = svgEl.clientHeight || window.innerHeight
-
-  // Resolve CSS custom properties up front
-  const rootStyle = getComputedStyle(document.documentElement)
-  const cssVars: Record<string, string> = {}
-  for (const prop of ['--paper-card', '--ink', '--ink-soft', '--accent', '--accent-soft', '--muted']) {
-    cssVars[prop] = rootStyle.getPropertyValue(prop).trim()
-  }
-  const ink = cssVars['--ink'] || '#1f2533'
-  const accent = cssVars['--accent'] || '#c4604a'
-
-  const clone = svgEl.cloneNode(true) as SVGSVGElement
-  // Set SVG to 2× so the renderer produces crisp text natively, not upscaled
-  clone.setAttribute('width', String(w * 2))
-  clone.setAttribute('height', String(h * 2))
-
-  // Inline .node-text class attributes — CSS classes aren't available in blob scope
-  for (const el of clone.querySelectorAll('text.node-text')) {
-    el.setAttribute('text-anchor', 'middle')
-    el.setAttribute('dominant-baseline', 'middle')
-    el.setAttribute('font-family', 'Caveat, cursive')
-    el.setAttribute('fill', el.classList.contains('selected') ? accent : ink)
-    el.removeAttribute('class')
-  }
-
-  // Add paper background
-  const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
-  bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%')
-  bg.setAttribute('fill', cssVars['--paper-card'] || '#fdfaf2')
-  clone.insertBefore(bg, clone.firstChild)
-
-  // Fetch @font-face URLs and embed as base64 so fonts render in the blob context
-  const fontRules = Array.from(document.styleSheets)
-    .flatMap(s => { try { return Array.from(s.cssRules) } catch { return [] } })
-    .filter(r => r instanceof CSSFontFaceRule)
-    .map(r => r.cssText)
-
-  const embeddedFonts: string[] = []
-  for (const rule of fontRules) {
-    const m = rule.match(/url\(["']?(https?:[^"')]+)["']?\)/)
-    if (!m) { embeddedFonts.push(rule); continue }
-    try {
-      const buf = await fetch(m[1]).then(r => r.arrayBuffer())
-      let binary = ''
-      const bytes = new Uint8Array(buf)
-      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
-      const b64 = btoa(binary)
-      const mime = m[1].includes('woff2') ? 'font/woff2' : 'font/woff'
-      embeddedFonts.push(rule.replace(m[0], `url(data:${mime};base64,${b64})`))
-    } catch {
-      embeddedFonts.push(rule)
-    }
-  }
-
-  const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style')
-  styleEl.textContent = embeddedFonts.join('\n')
-  clone.insertBefore(styleEl, clone.firstChild)
-
-  // Resolve remaining CSS variable references in attributes
-  let svgStr = new XMLSerializer().serializeToString(clone)
-  svgStr = svgStr.replace(/var\(\s*(--[a-z-]+)\s*\)/g, (_, name) => cssVars[name] ?? '#000')
-
-  const blob = new Blob([svgStr], { type: 'image/svg+xml' })
-  const url = URL.createObjectURL(blob)
-
-  await new Promise<void>((resolve, reject) => {
-    const img = new Image()
-    img.onload = () => {
-      const canvas = document.createElement('canvas')
-      canvas.width = w * 2; canvas.height = h * 2
-      const ctx = canvas.getContext('2d')!
-      ctx.drawImage(img, 0, 0)
-      URL.revokeObjectURL(url)
-      canvas.toBlob(pngBlob => {
-        if (!pngBlob) { reject(new Error('PNG export failed')); return }
-        const a = document.createElement('a')
-        const safeTitle = (G.title || 'mindmap').replace(/[^a-z0-9_\-]+/gi, '_')
-        a.href = URL.createObjectURL(pngBlob)
-        a.download = `${safeTitle}.png`
-        document.body.appendChild(a); a.click(); a.remove()
-        URL.revokeObjectURL(a.href)
-        resolve()
-      }, 'image/png')
-    }
-    img.onerror = reject
-    img.src = url
-  })
+  await exportPng(svgEl, G.title || 'mindmap')
 }
 
 defineExpose({ zoomIn, zoomOut, fitView, centerOn, startEdit, zoom, zoomPct, exportPNG })

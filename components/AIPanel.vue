@@ -153,8 +153,15 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useMindMapStore } from '~/stores/mindMapStore'
-import { applyAction as applyMindMapAction } from '~/lib/mindmap/applier'
+import { renderSafeMarkdown } from '~/lib/markdown/safeInline'
+import { useDraggable } from '~/composables/useDraggable'
+import { useSpeechRecognition } from '~/composables/useSpeechRecognition'
+import { useSuggestionState } from '~/composables/useSuggestionState'
 import type { MindMapAction } from '~/lib/ai/types'
+
+function isTouchDevice(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+}
 
 const props = withDefaults(defineProps<{
   initialX?: number
@@ -201,77 +208,27 @@ function submitWithPrompt() {
   view.value = 'ideas'
 }
 
-/* ---- Speech recognition ---- */
-const isListening = ref(false)
-const micError    = ref('')
-let recognition: any = null
+/* ---- Speech recognition (composable) ---- */
+const { isListening, error: micError, toggle: toggleMic, stop: stopMic } = useSpeechRecognition((text) => {
+  G.userPrompt = (G.userPrompt ? G.userPrompt + ' ' : '') + text
+})
 
-function toggleMic() {
-  if (isListening.value) {
-    recognition?.stop()
-    return
-  }
-  micError.value = ''
-  const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition
-  if (!SR) {
-    micError.value = 'Speech recognition not supported in this browser.'
-    return
-  }
-  recognition = new SR()
-  recognition.lang = 'en-US'
-  recognition.continuous = true
-  recognition.interimResults = false
+/* ---- Position & drag (composable) ---- */
+const { pos, isDragging, startDrag: startDragRaw, cleanup: cleanupDrag } = useDraggable({ x: props.initialX, y: props.initialY })
 
-  recognition.onstart  = () => { isListening.value = true }
-  recognition.onend    = () => { isListening.value = false }
-  recognition.onerror  = (e: any) => {
-    isListening.value = false
-    if (e.error !== 'aborted') micError.value = `Mic error: ${e.error}`
-  }
-  recognition.onresult = (e: any) => {
-    const transcript = Array.from(e.results as any[])
-      .map((r: any) => r[0].transcript)
-      .join(' ')
-    G.userPrompt = (G.userPrompt ? G.userPrompt + ' ' : '') + transcript
-  }
-  recognition.start()
+function startDrag(e: MouseEvent) {
+  if (isTouchDevice()) return
+  startDragRaw(e)
 }
-
-/* ---- Position & drag ---- */
-const pos = ref({ x: props.initialX, y: props.initialY })
-const isDragging = ref(false)
-const dragOffset = ref({ x: 0, y: 0 })
 
 watch(() => [props.initialX, props.initialY], ([x, y]) => {
   pos.value = { x, y }
 })
 
-function startDrag(e: MouseEvent) {
-  isDragging.value = true
-  dragOffset.value = { x: e.clientX - pos.value.x, y: e.clientY - pos.value.y }
-}
-
-function onMouseMove(e: MouseEvent) {
-  if (!isDragging.value) return
-  pos.value = {
-    x: Math.max(0, e.clientX - dragOffset.value.x),
-    y: Math.max(0, e.clientY - dragOffset.value.y),
-  }
-}
-
-function onMouseUp() {
-  isDragging.value = false
-}
-
-onMounted(() => {
-  window.addEventListener('mousemove', onMouseMove)
-  window.addEventListener('mouseup', onMouseUp)
-})
-
+onMounted(() => { /* drag handled inside useDraggable */ })
 onUnmounted(() => {
-  window.removeEventListener('mousemove', onMouseMove)
-  window.removeEventListener('mouseup', onMouseUp)
-  recognition?.stop()
+  cleanupDrag()
+  stopMic()
 })
 
 /* ---- Auto-scroll thinking text ---- */
@@ -282,41 +239,12 @@ watch(() => G.streamingThinking, () => {
 })
 
 /* ---- Markdown renderer ---- */
-function renderMarkdown(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/^---$/gm, '<hr>')
-    .replace(/\n/g, '<br>')
-}
+const renderMarkdown = renderSafeMarkdown
 
-/* ---- Suggestion state (applied / rejected per index) ---- */
-const appliedSet  = ref(new Set<number>())
-const rejectedSet = ref(new Set<number>())
+/* ---- Suggestion state (composable) ---- */
+const { appliedSet, rejectedSet, apply: applyAction, undo: undoApply, reject: rejectAction } = useSuggestionState(G)
 
-// Reset state whenever a new analysis batch arrives
-watch(() => G.suggestions.length, (n, prev) => {
-  if (n > 0 && prev === 0) { appliedSet.value = new Set(); rejectedSet.value = new Set() }
-})
-
-function doApply(action: MindMapAction, i: number) {
-  applyMindMapAction(G, action)
-  appliedSet.value = new Set(appliedSet.value).add(i)
-}
-
-function undoApply(i: number) {
-  G.undo()
-  const next = new Set(appliedSet.value)
-  next.delete(i)
-  appliedSet.value = next
-}
-
-function rejectAction(i: number) {
-  rejectedSet.value = new Set(rejectedSet.value).add(i)
-}
+function doApply(action: MindMapAction, i: number) { applyAction(action, i) }
 
 /* ---- Action helpers ---- */
 function kindLabel(kind: string): string {
@@ -709,5 +637,37 @@ function describeAction(action: MindMapAction): string {
 .ai-suggestion-reject:hover {
   color: #c0392b;
   opacity: 1;
+}
+
+/* ---- Mobile: bottom sheet ---- */
+@media (max-width: 800px) {
+  .ai-panel {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    top: auto !important;
+    width: 100% !important;
+  }
+  .ai-panel-card {
+    border-radius: 18px 18px 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    max-height: 80dvh;
+    overflow-y: auto;
+  }
+  .ai-panel-header {
+    cursor: default;
+    touch-action: none;
+  }
+  /* drag bar repurposed as visual indicator only */
+  .ai-drag-bar {
+    width: 40px;
+    height: 4px;
+    background: var(--ink);
+    opacity: 0.18;
+    border-radius: 2px;
+    margin: 0 auto 8px;
+  }
+  .ai-tab-body--ideas { max-height: 50dvh; }
 }
 </style>

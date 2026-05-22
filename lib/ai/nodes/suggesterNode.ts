@@ -1,4 +1,5 @@
 import type OpenAI from 'openai'
+import { MindMapActionsSchema } from '~/lib/ai/schemas'
 import type { MindMapAction, SerializedGraph } from '~/lib/ai/types'
 
 const SYSTEM_PROMPT = `\
@@ -23,30 +24,18 @@ Rules:
 - "tidy_layout": use when the graph looks spatially cluttered or nodes are overlapping — triggers an automatic radial re-layout
 - Return ONLY the JSON array — no prose, no markdown fences, no explanation`
 
-function isMindMapAction(value: unknown): value is MindMapAction {
-  if (!value || typeof value !== 'object') return false
-  const obj = value as Record<string, unknown>
-  switch (obj.kind) {
-    case 'add_node':      return typeof obj.label === 'string' && typeof obj.parentId === 'string'
-    case 'link_nodes':    return typeof obj.fromId === 'string' && typeof obj.toId === 'string'
-    case 'relabel':       return typeof obj.nodeId === 'string' && typeof obj.label === 'string'
-    case 'highlight':     return Array.isArray(obj.nodeIds) && typeof obj.reason === 'string'
-    case 'expand_branch': return typeof obj.parentId === 'string' && Array.isArray(obj.children)
-    case 'tidy_layout':   return true
-    default:              return false
-  }
-}
-
 function extractActions(raw: string): MindMapAction[] {
   const cleaned = raw.replace(/^```(?:json)?\s*/m, '').replace(/\s*```$/m, '').trim()
-  try {
-    const parsed: unknown = JSON.parse(cleaned)
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter(isMindMapAction)
-  } catch {
-    console.warn('[suggester] Could not parse actions JSON:', cleaned.slice(0, 200))
+  const parsed = MindMapActionsSchema.safeParse(
+    (() => {
+      try { return JSON.parse(cleaned) } catch { return null }
+    })()
+  )
+  if (!parsed.success) {
+    console.warn('[suggester] Could not parse or validate actions:', parsed.error.issues.slice(0, 3), cleaned.slice(0, 200))
     return []
   }
+  return parsed.data
 }
 
 export interface SuggesterResult {
@@ -62,12 +51,15 @@ export async function runSuggesterNode(
   model: string,
   maxTokens: number,
   temperature: number,
+  signal?: AbortSignal,
+  onChunk?: (text: string) => void,
 ): Promise<SuggesterResult> {
-  const response = await client.chat.completions.create({
+  const stream = await client.chat.completions.create({
     model,
     max_tokens: maxTokens,
     temperature,
-    stream: false,
+    stream: true,
+    stream_options: { include_usage: true },
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       {
@@ -75,14 +67,28 @@ export async function runSuggesterNode(
         content: `Graph nodes:\n${JSON.stringify(graph.nodes)}\n\nAnalysis:\n${analysis}\n\nGenerate actions:`,
       },
     ],
-  })
+  }, { signal })
 
-  const raw = response.choices[0]?.message?.content ?? '[]'
-  const actions = extractActions(raw)
+  let raw = ''
+  let inputTokens = 0
+  let outputTokens = 0
+
+  for await (const chunk of stream) {
+    signal?.throwIfAborted()
+    const text = chunk.choices[0]?.delta?.content ?? ''
+    if (text) {
+      raw += text
+      onChunk?.(text)
+    }
+    if (chunk.usage) {
+      inputTokens  = chunk.usage.prompt_tokens     ?? 0
+      outputTokens = chunk.usage.completion_tokens ?? 0
+    }
+  }
 
   return {
-    actions,
-    inputTokens:  response.usage?.prompt_tokens     ?? 0,
-    outputTokens: response.usage?.completion_tokens ?? 0,
+    actions: extractActions(raw),
+    inputTokens,
+    outputTokens,
   }
 }

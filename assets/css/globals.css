@@ -34,7 +34,13 @@ html, body {
           user-select: none;
 }
 
-#app { position: relative; width: 100vw; height: 100vh; }
+#app {
+  position: relative;
+  width: 100vw;
+  /* dvh accounts for iOS Safari's collapsing address bar; 100vh as fallback */
+  height: 100vh;
+  height: 100dvh;
+}
 
 /* ---------- Paper background ---------- */
 .paper-bg {
@@ -527,6 +533,11 @@ html, body {
 /* Sheet handle — hidden on desktop */
 .sheet-handle { display: none; }
 
+/* Hide keyboard hint on touch devices — meaningless without a keyboard */
+@media (hover: none) and (pointer: coarse) {
+  .hint { display: none; }
+}
+
 @media (max-width: 1100px) {
   .side-note {
     position: fixed;
@@ -542,9 +553,10 @@ html, body {
   .side-note-card {
     border-radius: 18px 18px 0 0;
     min-height: 0;
-    max-height: 65vh;
+    max-height: 65dvh;
     overflow: hidden;
-    padding: 0 24px 0;
+    /* safe-area-inset: clear iPhone home indicator */
+    padding: 0 24px calc(env(safe-area-inset-bottom, 0px) + 0px);
     background: var(--paper-card);
     box-shadow: 0 -6px 28px rgba(0, 0, 0, 0.16);
     transition: max-height 0.25s ease;
@@ -610,17 +622,49 @@ html, body {
   }
 
   .hint { right: 18px; }
+
+  /* Zoom readout: clear the bottom sheet */
+  .zoom-readout {
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+  }
 }
+
 @media (max-width: 800px) {
-  .header { left: 18px; right: 18px; flex-wrap: wrap; gap: 8px; }
+  /* Toolbar becomes a top strip */
+  .toolbar {
+    left: 0;
+    right: 0;
+    top: 0;
+    padding: env(safe-area-inset-top, 0px) 8px 6px;
+    background: var(--paper-card);
+    border-bottom: 1px solid rgba(31,37,51,0.10);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 2px;
+    z-index: 10;
+  }
+  .toolbar::-webkit-scrollbar { display: none; }
+
+  /* Chips: meet Apple 44px minimum tap target */
+  .tool-chip { min-height: 44px; font-size: 18px; padding: 4px 12px; }
+  .tool-divider { display: none; }
+
+  /* Header moves below toolbar strip */
+  .header {
+    left: 12px;
+    right: 12px;
+    top: calc(56px + env(safe-area-inset-top, 0px));
+    flex-wrap: wrap;
+    gap: 8px;
+  }
   .header-title { font-size: 36px; }
   .header-em    { font-size: 36px; }
   .header-date  { font-size: 22px; }
   .header-meta  { font-size: 16px; gap: 8px; }
-  .toolbar { left: 18px; top: 110px; }
-  .tool-chip { font-size: 18px; padding: 4px 12px; }
+
   .hint { left: 18px; right: 18px; bottom: 50px; font-size: 15px; }
-  .zoom-readout { font-size: 18px; }
-  .ai-panel { left: 18px; width: calc(100vw - 36px); }
+  .zoom-readout { font-size: 18px; right: 12px; }
   .agent-cards { grid-template-columns: 1fr; }
 }

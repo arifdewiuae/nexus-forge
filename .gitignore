@@ -6,8 +6,6 @@ node_modules
 .env.local
 .cache
 dist
-design
-
 # Logs
 logs
 *.log
@@ -18,6 +16,9 @@ Thumbs.db
 
 # Vercel
 .vercel
+
+# Local history (VSCode extension artifact)
+.history
 
 # Editor
 .vscode

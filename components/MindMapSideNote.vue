@@ -68,7 +68,11 @@ const emit = defineEmits<{ centerOn: [id: string]; startEdit: [id: string] }>()
 const labelInput = ref<HTMLInputElement | null>(null)
 const editingLabel = ref(false)
 const draft = ref(G.nodeById(G.selectedId ?? '')?.label ?? '')
-const sheetCollapsed = ref(false)
+
+function isMobileBreakpoint(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 1100px)').matches
+}
+const sheetCollapsed = ref(isMobileBreakpoint())
 const cardEl = ref<HTMLElement | null>(null)
 const cardSize = ref({ w: 268, h: 320 })
 
@@ -153,7 +157,7 @@ function measureCard() {
 onMounted(() => { measureCard(); window.addEventListener('resize', measureCard) })
 onBeforeUnmount(() => window.removeEventListener('resize', measureCard))
 watch(selected, (node) => {
-  sheetCollapsed.value = false
+  sheetCollapsed.value = isMobileBreakpoint()
   if (!editingLabel.value) draft.value = node?.label ?? ''
 })
 watch([selected, children], () => nextTick(measureCard))

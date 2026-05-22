@@ -21,10 +21,11 @@ export interface StreamCallbacks {
   emit: (event: BoardStreamEvent) => void
 }
 
-export function createMindMapGraph(apiKey: string, callbacks: StreamCallbacks) {
+export function createMindMapGraph(apiKey: string, callbacks: StreamCallbacks, signal?: AbortSignal) {
   const client = new OpenAI({ apiKey, baseURL: AI_CONFIG.BASE_URL })
 
   async function analyzerNode(state: MindMapGraphState): Promise<Partial<MindMapGraphState>> {
+    signal?.throwIfAborted()
     const result = await runAnalyzerNode(
       client,
       state.graph,
@@ -34,6 +35,7 @@ export function createMindMapGraph(apiKey: string, callbacks: StreamCallbacks) {
       AI_CONFIG.MODEL_ID,
       AI_CONFIG.MAX_TOKENS,
       AI_CONFIG.TEMPERATURE,
+      signal,
     )
     return {
       analysis:     result.analysis,
@@ -43,7 +45,8 @@ export function createMindMapGraph(apiKey: string, callbacks: StreamCallbacks) {
   }
 
   async function suggesterNode(state: MindMapGraphState): Promise<Partial<MindMapGraphState>> {
-    callbacks.emit({ type: 'thinking', text: '\n\n---\n*Generating suggestions…*\n' })
+    signal?.throwIfAborted()
+    callbacks.emit({ type: 'thinking', text: '\n\n---\n*Building suggestions…*\n' })
 
     const result = await runSuggesterNode(
       client,
@@ -52,6 +55,8 @@ export function createMindMapGraph(apiKey: string, callbacks: StreamCallbacks) {
       AI_CONFIG.MODEL_ID,
       Math.floor(AI_CONFIG.MAX_TOKENS / 2),
       AI_CONFIG.TEMPERATURE,
+      signal,
+      (text) => callbacks.emit({ type: 'thinking', text }),
     )
 
     result.actions.forEach(action => callbacks.emit({ type: 'suggestion', action }))
@@ -78,8 +83,9 @@ export async function runMindMapAnalysis(
   userPrompt: string,
   apiKey: string,
   emit: (event: BoardStreamEvent) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
-  const mindMapGraph = createMindMapGraph(apiKey, { emit })
+  const mindMapGraph = createMindMapGraph(apiKey, { emit }, signal)
   const startedAt = Date.now()
 
   const finalState = await mindMapGraph.invoke({

@@ -28,6 +28,7 @@ export async function runAnalyzerNode(
   model: string,
   maxTokens: number,
   temperature: number,
+  signal?: AbortSignal,
 ): Promise<AnalyzerResult> {
   const systemPrompt = agent
     ? `You are ${agent.name}. ${agent.personality}\n\n${BASE_SYSTEM}\n\nVoice rules: ${agent.voiceRules}`
@@ -54,7 +55,7 @@ export async function runAnalyzerNode(
         content: `${promptContext}${mapDescription}`,
       },
     ],
-  })
+  }, { signal })
 
   let analysis = ''
   let inputTokens = 0

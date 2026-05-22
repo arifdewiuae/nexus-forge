@@ -1,6 +1,20 @@
 /* =========================================================
-   lib/ai/types.ts — shared types for the AI mind-map pipeline
+   lib/ai/types.ts — re-exports from schemas.ts
+   Types are derived from Zod schemas (single source of truth).
+   Import from here for application code; import from schemas.ts
+   when you also need the Zod schema objects.
    ========================================================= */
+
+export type {
+  SerializedNode,
+  SerializedGraph,
+  AgentPersona,
+  MindMapAction,
+  BoardStreamEvent,
+  AnalyzeRequest,
+} from './schemas'
+
+// ---- Re-export non-schema items ----
 
 /** A single node in the mind-map graph */
 export interface MindMapNode {
@@ -18,60 +32,19 @@ export interface CrossLink {
   toId: string
 }
 
-/** Serialized graph sent to the LLM */
-export interface SerializedGraph {
-  title: string
-  nodeCount: number
-  nodes: SerializedNode[]
-  links?: { fromId: string; toId: string }[]
-}
-
-export interface SerializedNode {
-  id: string
-  label: string
-  parentId: string | null
-  childCount: number
-  level: number
-  x: number
-  y: number
-}
-
-/** Actions the AI can suggest — applied to the graph store */
-export type MindMapAction =
-  | { kind: 'add_node';      label: string; parentId: string; description?: string }
-  | { kind: 'link_nodes';    fromId: string; toId: string }
-  | { kind: 'relabel';       nodeId: string; label: string }
-  | { kind: 'highlight';     nodeIds: string[]; reason: string }
-  | { kind: 'expand_branch'; parentId: string; children: { label: string; description?: string }[] }
-  | { kind: 'tidy_layout' }
-
-/** SSE events streamed from /api/ai/analyze */
-export type BoardStreamEvent =
-  | { type: 'thinking';   text: string }
-  | { type: 'suggestion'; action: MindMapAction }
-  | { type: 'done';       latencyMs: number; tokens: number; costUsd: number }
-  | { type: 'error';      message: string }
-
 /** Final analysis result stored in the UI */
 export interface AnalysisResult {
   thinking: string
-  suggestions: MindMapAction[]
+  suggestions: import('./schemas').MindMapAction[]
   tokensUsed: number
   costUsd: number
   latencyMs: number
 }
 
 /** Agent personality definition */
-export interface AgentPersona {
-  id: string
-  name: string
-  tagline: string
-  personality: string
-  voiceRules: string
-  accentColor: string
-}
+export type { AgentPersona } from './schemas'
 
-export const AGENTS: AgentPersona[] = [
+export const AGENTS: import('./schemas').AgentPersona[] = [
   {
     id: 'axiom9',
     name: 'AXIOM-9',

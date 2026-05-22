@@ -51,10 +51,11 @@ Or enter it directly in the app via **⚙ Settings** — it is stored only in yo
 ## Architecture
 
 ```
-pages/board/[id].vue
+pages/index.vue
   └─ MindMapCanvas.vue      ← Custom SVG canvas, pan/zoom/drag/undo
   └─ MindMapToolbar.vue     ← Tool chips + agent selector
-  └─ MindMapSideNote.vue    ← Live AI trace panel + suggestion cards
+  └─ MindMapSideNote.vue    ← Selected-node details panel (bottom sheet on mobile)
+  └─ AIPanel.vue            ← AI trace panel + suggestion cards (floating / bottom sheet)
   └─ MindMapModal.vue       ← Export / Import / Settings / Help
 
 stores/mindMapStore.ts      ← All reactive graph state (Pinia)
@@ -176,5 +177,4 @@ Model: `accounts/fireworks/models/minimax-m2p7` via Fireworks.ai
 
 - Version history + AI diff view
 - Voice input for node labels
-- Mobile touch support
 - Template gallery with AI seeding
