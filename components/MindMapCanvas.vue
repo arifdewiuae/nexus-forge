@@ -147,7 +147,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useMindMapStore } from '~/stores/mindMapStore'
 import { useTouchGestures } from '~/composables/useTouchGestures'
-import { nodeSize, rotFor, sketchRectPath, edgePath } from '~/lib/mindmap/geometry'
+import { nodeSize, rotFor, sketchRectPath, underlinePath, edgePath } from '~/lib/mindmap/geometry'
 import { exportPng } from '~/lib/mindmap/exportPng'
 import type { MindMapNode } from '~/lib/ai/types'
 
