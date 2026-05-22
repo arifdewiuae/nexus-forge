@@ -1,128 +1,101 @@
 <template>
   <div class="toolbar">
-    <!-- Primary tool chips — always visible -->
-    <button v-for="t in tools" :key="t.id" class="tool-chip"
-            :class="{ active: G.tool === t.id }"
-            :title="`${t.label} (${t.key})`"
-            :aria-label="`${t.label} tool (${t.key})`"
-            @click="setTool(t.id)">
-      <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34">
-        <path :d="TOOL_BLOB" filter="url(#wobble)"/>
-      </svg>
-      <span class="chip-label">{{ t.label }}</span>
-      <span class="chip-icon" aria-hidden="true">{{ t.icon }}</span>
-    </button>
-
-    <span class="tool-divider"></span>
-
-    <!-- Ask AI — always visible -->
-    <button ref="aiBtn" class="tool-chip" :class="{ active: G.isAIPanelOpen }"
-            :disabled="G.isAnalyzing"
-            @click="emit('analyze')"
-            title="Ask AI to analyze your mind map (⌘↵)"
-            :aria-label="G.isAnalyzing ? 'AI thinking…' : 'Ask AI to analyze map'">
-      <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
-      <span class="chip-label">{{ G.isAnalyzing ? '⟳ thinking…' : '✦ ask AI' }}</span>
-      <span class="chip-icon" aria-hidden="true">{{ G.isAnalyzing ? '⟳' : '✦' }}</span>
-    </button>
-
-    <!-- Desktop-only chips -->
-    <template class="desktop-chips">
-      <span class="tool-divider desktop-only"></span>
-
-      <button class="tool-chip desktop-only" :disabled="!G.canUndo" @click="G.undo()" title="Undo (⌘Z)" aria-label="Undo">
-        <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
-        <span>↶ undo</span>
-      </button>
-      <button class="tool-chip desktop-only" :disabled="!G.canRedo" @click="G.redo()" title="Redo (⌘⇧Z)" aria-label="Redo">
-        <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
-        <span>↷ redo</span>
+    <div class="toolbar-scroll">
+      <!-- Canvas tools -->
+      <button v-for="t in tools" :key="t.id" class="tool-chip"
+              :class="{ active: G.tool === t.id }"
+              :title="`${t.label} (${t.key})`"
+              :aria-label="`${t.label} tool (${t.key})`"
+              @click="setTool(t.id)">
+        <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34">
+          <path :d="TOOL_BLOB" filter="url(#wobble)"/>
+        </svg>
+        <span class="chip-label">{{ t.label }}</span>
+        <span class="chip-icon" aria-hidden="true">{{ t.icon }}</span>
       </button>
 
-      <span class="tool-divider desktop-only"></span>
+      <span class="tool-divider toolbar-divider"></span>
 
-      <button class="tool-chip desktop-only" @click="emit('fit')" title="Fit view (F)" aria-label="Fit view">
+      <!-- History -->
+      <button class="tool-chip" :disabled="!G.canUndo" @click="G.undo()" title="Undo (⌘Z)" aria-label="Undo">
         <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
-        <span>⊡ fit</span>
+        <span class="chip-label">↶ undo</span>
+        <span class="chip-icon" aria-hidden="true">↶</span>
       </button>
-      <button class="tool-chip desktop-only" @click="emit('export')" title="Export JSON" aria-label="Export">
+      <button class="tool-chip" :disabled="!G.canRedo" @click="G.redo()" title="Redo (⌘⇧Z)" aria-label="Redo">
         <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
-        <span>⇪ export</span>
-      </button>
-      <button class="tool-chip desktop-only" @click="emit('import')" title="Import JSON" aria-label="Import">
-        <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
-        <span>⇩ import</span>
-      </button>
-
-      <span class="tool-divider desktop-only"></span>
-
-      <button class="tool-chip desktop-only" :class="{ 'chip-thinking': G.isLayouting }" :disabled="G.isLayouting" @click="emit('tidy')" title="Tidy layout" aria-label="Tidy radial layout">
-        <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
-        <span v-if="G.isLayouting"><span class="spin-icon">⟳</span> tidying…</span>
-        <span v-else>⊹ tidy</span>
+        <span class="chip-label">↷ redo</span>
+        <span class="chip-icon" aria-hidden="true">↷</span>
       </button>
 
-      <button class="tool-chip desktop-only" @click="emit('agent')" title="Choose AI personality" :aria-label="G.activeAgent ? `AI agent: ${G.activeAgent.name}` : 'Choose AI agent'">
+      <span class="tool-divider toolbar-divider"></span>
+
+      <!-- AI actions -->
+      <button ref="aiBtn" class="tool-chip tool-chip--ai" :class="{ active: G.isAIPanelOpen }"
+              :disabled="G.isAnalyzing"
+              @click="emit('analyze')"
+              title="Ask AI to analyze your mind map (⌘↵)"
+              :aria-label="G.isAnalyzing ? 'AI thinking…' : 'Ask AI to analyze map'">
         <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
-        <span>{{ G.activeAgent ? G.activeAgent.name : '⬡ agent' }}</span>
+        <span class="chip-label chip-label--full">{{ G.isAnalyzing ? '⟳ thinking…' : '✦ ask AI' }}</span>
+        <span class="chip-label chip-label--short">{{ G.isAnalyzing ? '⟳' : '✦ AI' }}</span>
+        <span class="chip-icon" aria-hidden="true">{{ G.isAnalyzing ? '⟳' : '✦' }}</span>
       </button>
 
-      <span class="tool-divider desktop-only"></span>
-
-      <button class="tool-chip desktop-only" @click="emit('help')" title="Help" aria-label="Help">
+      <button class="tool-chip" :class="{ 'chip-thinking': G.isLayouting }" :disabled="G.isLayouting" @click="emit('tidy')" title="Tidy layout" aria-label="Tidy radial layout">
         <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
-        <span>? help</span>
+        <span class="chip-label">
+          <span v-if="G.isLayouting"><span class="spin-icon">⟳</span> tidying…</span>
+          <span v-else>⊹ tidy</span>
+        </span>
+        <span class="chip-icon" aria-hidden="true">{{ G.isLayouting ? '⟳' : '⊹' }}</span>
       </button>
-      <button class="tool-chip desktop-only" :class="{ 'key-warn': !hasKey }" @click="emit('settings')" title="API key settings" :aria-label="hasKey ? 'API key settings' : 'API key required'">
-        <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
-        <span>⚙ keys{{ hasKey ? '' : ' !' }}</span>
-      </button>
-      <button class="tool-chip danger desktop-only" @click="doReset" title="Reset board" aria-label="Reset board">
-        <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
-        <span>↻ reset</span>
-      </button>
-    </template>
-
-    <!-- ⋯ overflow button — mobile only -->
-    <button class="tool-chip mobile-only overflow-btn"
-            :class="{ active: overflowOpen }"
-            @click="overflowOpen = !overflowOpen"
-            aria-label="More options"
-            title="More options">
-      <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
-      <span>⋯</span>
-    </button>
-
-    <!-- Overflow popover — mobile only -->
-    <div v-if="overflowOpen" class="overflow-popover mobile-only" role="dialog" aria-label="More options">
-      <div class="overflow-grid">
-        <button class="overflow-item" :disabled="!G.canUndo" @click="G.undo(); overflowOpen=false">↶ undo</button>
-        <button class="overflow-item" :disabled="!G.canRedo" @click="G.redo(); overflowOpen=false">↷ redo</button>
-        <button class="overflow-item" @click="emit('fit'); overflowOpen=false">⊡ fit</button>
-        <button class="overflow-item" :disabled="G.isLayouting" @click="emit('tidy'); overflowOpen=false">⊹ tidy</button>
-        <button class="overflow-item" @click="emit('agent'); overflowOpen=false">{{ G.activeAgent ? G.activeAgent.name : '⬡ agent' }}</button>
-        <button class="overflow-item" @click="emit('export'); overflowOpen=false">⇪ export</button>
-        <button class="overflow-item" @click="emit('import'); overflowOpen=false">⇩ import</button>
-        <button class="overflow-item" @click="emit('help'); overflowOpen=false">? help</button>
-        <button class="overflow-item" :class="{ 'key-warn': !hasKey }" @click="emit('settings'); overflowOpen=false">⚙ keys{{ hasKey ? '' : ' !' }}</button>
-        <button class="overflow-item danger" @click="doReset">↻ reset</button>
-      </div>
-      <!-- Accent colour picker inside overflow on mobile -->
-      <div class="overflow-accent">
-        <span>accent</span>
-        <input type="color" class="overflow-color" :value="G.accentColor"
-               @input="(e) => G.setAccent((e.target as HTMLInputElement).value)"
-               title="Change accent color"/>
-      </div>
     </div>
 
-    <!-- Tap-outside to close overlay -->
-    <div v-if="overflowOpen" class="overflow-backdrop mobile-only" @click="overflowOpen=false" aria-hidden="true"></div>
+    <!-- Pinned — never scrolls off screen -->
+    <div class="toolbar-more">
+      <button ref="moreBtn" class="tool-chip overflow-btn"
+              :class="{ active: overflowOpen }"
+              aria-haspopup="menu"
+              :aria-expanded="overflowOpen"
+              aria-label="More options"
+              title="More options"
+              @click="toggleOverflow">
+        <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
+        <span class="chip-label">⋯ more</span>
+        <span class="chip-icon" aria-hidden="true">⋯</span>
+      </button>
+    </div>
+
+    <Teleport to="body">
+      <div v-if="overflowOpen" class="overflow-backdrop" aria-hidden="true" @click="overflowOpen = false"></div>
+      <div v-if="overflowOpen"
+           class="overflow-popover"
+           role="menu"
+           aria-label="More options"
+           :style="popoverStyle">
+        <div class="overflow-grid">
+          <button class="overflow-item" role="menuitem" @click="pick('fit')">⊡ fit</button>
+          <button class="overflow-item" role="menuitem" @click="pick('export')">⇪ export</button>
+          <button class="overflow-item" role="menuitem" @click="pick('import')">⇩ import</button>
+          <button class="overflow-item" role="menuitem" @click="pick('agent')">{{ G.activeAgent ? G.activeAgent.name : '⬡ agent' }}</button>
+          <button class="overflow-item" role="menuitem" @click="pick('help')">? help</button>
+          <button class="overflow-item" :class="{ 'key-warn': !hasKey }" role="menuitem" @click="pick('settings')">⚙ settings{{ hasKey ? '' : ' !' }}</button>
+          <button class="overflow-item danger" role="menuitem" @click="pick('reset')">↻ reset</button>
+        </div>
+        <div class="overflow-accent">
+          <span>accent</span>
+          <input type="color" class="overflow-color" :value="G.accentColor"
+                 @input="(e) => G.setAccent((e.target as HTMLInputElement).value)"
+                 title="Change accent color"/>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useMindMapStore } from '~/stores/mindMapStore'
 import { useApiKeys } from '~/composables/useApiKeys'
 
@@ -142,7 +115,9 @@ const emit = defineEmits<{
 }>()
 
 const aiBtn = ref<HTMLButtonElement | null>(null)
+const moreBtn = ref<HTMLButtonElement | null>(null)
 const overflowOpen = ref(false)
+const popoverStyle = ref<{ top: string; left: string }>({ top: '0', left: '0' })
 defineExpose({ aiBtn })
 
 const TOOL_BLOB = 'M 8 4 Q 60 1, 112 5 Q 116 17, 110 30 Q 60 33, 6 28 Q 3 14, 8 4 Z'
@@ -159,58 +134,109 @@ function setTool(id: 'select' | 'add' | 'branch' | 'connect' | 'erase') {
   G.tool = id; G.linkFromId = null
 }
 
-function doReset() {
-  overflowOpen.value = false
-  emit('reset')
+function toggleOverflow() {
+  if (!overflowOpen.value && moreBtn.value) {
+    const r = moreBtn.value.getBoundingClientRect()
+    const width = 280
+    const left = Math.max(12, Math.min(r.right - width, window.innerWidth - width - 12))
+    popoverStyle.value = { top: `${r.bottom + 8}px`, left: `${left}px` }
+  }
+  overflowOpen.value = !overflowOpen.value
 }
+
+type OverflowAction = 'fit' | 'export' | 'import' | 'agent' | 'help' | 'settings' | 'reset'
+
+function pick(action: OverflowAction) {
+  overflowOpen.value = false
+  emit(action)
+}
+
+function onDocKey(e: KeyboardEvent) {
+  if (e.key === 'Escape') overflowOpen.value = false
+}
+
+onMounted(() => document.addEventListener('keydown', onDocKey))
+onBeforeUnmount(() => document.removeEventListener('keydown', onDocKey))
 </script>
 
 <style scoped>
-/* Hide chip text label on narrow touch screens — show icon instead */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  overflow: hidden;
+}
+
+.toolbar-scroll {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 4px;
+  mask-image: linear-gradient(to right, black calc(100% - 20px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 20px), transparent 100%);
+}
+
+.toolbar-scroll::-webkit-scrollbar { display: none; }
+
+.toolbar-more {
+  flex-shrink: 0;
+  position: relative;
+  padding-left: 4px;
+  background: linear-gradient(90deg, transparent, var(--paper) 18px);
+}
+
 .chip-icon { display: none; }
+.chip-label--short { display: none; }
 
-@media (max-width: 480px) {
-  .chip-label { display: none; }
-  .chip-icon { display: inline; position: relative; z-index: 1; }
+/* Tablet / narrow laptop: icon-only chips to save width */
+@media (max-width: 1100px) {
+  .toolbar-scroll .chip-label:not(.chip-label--short) { display: none; }
+  .toolbar-scroll .chip-icon { display: inline; position: relative; z-index: 1; }
+  .toolbar-divider { display: none; }
+  .tool-chip--ai .chip-label--full { display: none; }
+  .tool-chip--ai .chip-label--short { display: inline; position: relative; z-index: 1; }
 }
 
-/* Desktop-only elements: hidden on mobile, shown on desktop */
+/* Keep "more" label visible until phone width */
+@media (max-width: 1100px) {
+  .overflow-btn .chip-label { display: inline; position: relative; z-index: 1; }
+  .overflow-btn .chip-icon { display: none; }
+}
+
+@media (max-width: 520px) {
+  .overflow-btn .chip-label { display: none; }
+  .overflow-btn .chip-icon { display: inline; position: relative; z-index: 1; }
+}
+
 @media (max-width: 800px) {
-  .desktop-only { display: none; }
+  .toolbar-more {
+    background: var(--paper-card);
+  }
 }
 
-/* Mobile-only elements: shown on mobile, hidden on desktop */
-.mobile-only { display: none; }
-@media (max-width: 800px) {
-  .mobile-only { display: inline-flex; }
-  button.mobile-only { display: inline-flex; }
-  div.mobile-only { display: block; }
-}
-
-/* Toolbar positioning on mobile */
-@media (max-width: 800px) {
-  /* Toolbar handled by globals.css — override left/top for mobile */
-}
-
-/* ---- Overflow popover ---- */
 .overflow-popover {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
+  position: fixed;
   background: var(--paper-card);
   border: 1.5px solid var(--ink);
   border-radius: 16px;
   padding: 14px;
-  z-index: 30;
+  z-index: 100;
   box-shadow: 0 8px 28px rgba(0,0,0,0.18);
   min-width: 280px;
-  max-width: calc(100vw - 24px);
+  max-width: min(320px, calc(100vw - 24px));
 }
+
 .overflow-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 6px;
 }
+
 .overflow-item {
   font-family: 'Caveat', cursive;
   font-size: 20px;
@@ -225,12 +251,13 @@ function doReset() {
   line-height: 1.2;
   transition: background 0.12s, border-color 0.12s;
 }
+
 .overflow-item:hover:not(:disabled) {
   background: var(--accent-soft);
   border-color: var(--accent);
   color: var(--accent);
 }
-.overflow-item:disabled { opacity: 0.32; cursor: default; }
+
 .overflow-item.danger { color: var(--accent); border-color: var(--accent); }
 .overflow-item.key-warn { color: #b85c00; border-color: #b85c00; }
 
@@ -245,6 +272,7 @@ function doReset() {
   font-size: 18px;
   color: var(--muted);
 }
+
 .overflow-color {
   width: 28px;
   height: 28px;
@@ -257,14 +285,13 @@ function doReset() {
   -webkit-appearance: none;
   overflow: hidden;
 }
+
 .overflow-color::-webkit-color-swatch-wrapper { padding: 0; }
 .overflow-color::-webkit-color-swatch { border: none; border-radius: 50%; }
 
 .overflow-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 29;
+  z-index: 99;
 }
-
-/* Mobile toolbar appearance handled in globals.css */
 </style>

@@ -1,7 +1,8 @@
 <template>
   <aside
     class="ai-panel"
-    :style="{ left: pos.x + 'px', top: pos.y + 'px' }"
+    :class="{ 'ai-panel--sheet': isMobileSheet }"
+    :style="panelStyle"
   >
     <div class="ai-panel-card">
       <!-- Drag handle / header -->
@@ -41,50 +42,54 @@
       </div>
 
       <!-- ── INPUT TAB ── -->
-      <div v-if="view === 'input'" class="ai-tab-body">
+      <div v-if="view === 'input'" class="ai-tab-body ai-tab-body--input">
 
-        <!-- Analyze current map -->
-        <button
-          class="ai-analyze-btn"
-          :disabled="G.isAnalyzing"
-          @click="submitAnalyze"
-        >
-          {{ G.isAnalyzing ? '⟳ thinking…' : (G.analysisResult ? '↻ re-analyze map' : '✦ analyze my map') }}
-        </button>
-        <div class="ai-analyze-hint">AI reads your current board and suggests ideas</div>
-
-        <div class="ai-divider"><span>or give it a brain dump</span></div>
-
-        <!-- Brain dump -->
-        <div class="ai-prompt-input-row">
-          <textarea
-            class="ai-prompt-textarea"
-            v-model="G.userPrompt"
-            placeholder="type or speak… AI will build the map"
-            rows="3"
-            :disabled="G.isAnalyzing"
-            @keydown.meta.enter.prevent="submitWithPrompt"
-            @keydown.ctrl.enter.prevent="submitWithPrompt"
-          ></textarea>
+        <div class="ai-tab-scroll">
+          <!-- Analyze current map -->
           <button
-            class="ai-mic-btn"
-            :class="{ listening: isListening }"
-            @click="toggleMic"
-            :title="isListening ? 'stop recording' : 'speak your thoughts'"
+            class="ai-analyze-btn"
+            :disabled="G.isAnalyzing"
+            @click="submitAnalyze"
           >
-            {{ isListening ? '⏹' : '🎙' }}
+            {{ G.isAnalyzing ? '⟳ thinking…' : (G.analysisResult ? '↻ re-analyze map' : '✦ analyze my map') }}
           </button>
-        </div>
-        <div v-if="micError" class="ai-mic-error">{{ micError }}</div>
+          <div class="ai-analyze-hint">AI reads your current board and suggests ideas</div>
 
-        <button
-          class="ai-submit-btn"
-          :disabled="G.isAnalyzing || !G.userPrompt.trim()"
-          @click="submitWithPrompt"
-        >
-          {{ G.isAnalyzing ? '⟳ thinking…' : 'build map →' }}
-        </button>
-        <div class="ai-submit-hint">or ⌘↵</div>
+          <div class="ai-divider"><span>or give it a brain dump</span></div>
+
+          <!-- Brain dump -->
+          <div class="ai-prompt-input-row">
+            <textarea
+              class="ai-prompt-textarea"
+              v-model="G.userPrompt"
+              placeholder="type or speak… AI will build the map"
+              rows="3"
+              :disabled="G.isAnalyzing"
+              @keydown.meta.enter.prevent="submitWithPrompt"
+              @keydown.ctrl.enter.prevent="submitWithPrompt"
+            ></textarea>
+            <button
+              class="ai-mic-btn"
+              :class="{ listening: isListening }"
+              @click="toggleMic"
+              :title="isListening ? 'stop recording' : 'speak your thoughts'"
+            >
+              {{ isListening ? '⏹' : '🎙' }}
+            </button>
+          </div>
+          <div v-if="micError" class="ai-mic-error">{{ micError }}</div>
+        </div>
+
+        <div class="ai-input-footer">
+          <button
+            class="ai-submit-btn"
+            :disabled="G.isAnalyzing || !G.userPrompt.trim()"
+            @click="submitWithPrompt"
+          >
+            {{ G.isAnalyzing ? '⟳ thinking…' : 'build map →' }}
+          </button>
+          <div class="ai-submit-hint">or ⌘↵</div>
+        </div>
       </div>
 
       <!-- ── IDEAS TAB ── -->
@@ -163,6 +168,10 @@ function isTouchDevice(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
 }
 
+function isMobileViewport(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 800px)').matches
+}
+
 const props = withDefaults(defineProps<{
   initialX?: number
   initialY?: number
@@ -185,9 +194,12 @@ const hasResults = computed(() => G.suggestions.length > 0 || !!G.analysisResult
 
 // Prefer the live stream while analyzing; fall back to the captured result once done.
 // This ensures the reasoning text stays visible after the stream ends.
-const thinkingText = computed(
-  () => G.streamingThinking || G.analysisResult?.thinking || ''
-)
+const thinkingText = computed(() => {
+  const raw = G.streamingThinking || G.analysisResult?.thinking || ''
+  // Suggester emits raw JSON — strip if it leaked into older cached results
+  const jsonStart = raw.search(/\n\s*\[\s*\{[\s\S]*?"kind"\s*:/)
+  return jsonStart === -1 ? raw : raw.slice(0, jsonStart).trimEnd()
+})
 const thinkingCollapsed = ref(false)
 
 // Auto-switch to ideas when analysis starts; reset collapse so reasoning streams visibly
@@ -214,7 +226,16 @@ const { isListening, error: micError, toggle: toggleMic, stop: stopMic } = useSp
 })
 
 /* ---- Position & drag (composable) ---- */
+const isMobileSheet = ref(false)
 const { pos, isDragging, startDrag: startDragRaw, cleanup: cleanupDrag } = useDraggable({ x: props.initialX, y: props.initialY })
+
+const panelStyle = computed(() => {
+  if (isMobileSheet.value) return {}
+  return { left: `${pos.value.x}px`, top: `${pos.value.y}px` }
+})
+
+let mobileMq: MediaQueryList | null = null
+function syncMobileSheet() { isMobileSheet.value = isMobileViewport() }
 
 function startDrag(e: MouseEvent) {
   if (isTouchDevice()) return
@@ -225,10 +246,15 @@ watch(() => [props.initialX, props.initialY], ([x, y]) => {
   pos.value = { x, y }
 })
 
-onMounted(() => { /* drag handled inside useDraggable */ })
+onMounted(() => {
+  syncMobileSheet()
+  mobileMq = window.matchMedia('(max-width: 800px)')
+  mobileMq.addEventListener('change', syncMobileSheet)
+})
 onUnmounted(() => {
   cleanupDrag()
   stopMic()
+  mobileMq?.removeEventListener('change', syncMobileSheet)
 })
 
 /* ---- Auto-scroll thinking text ---- */
@@ -375,6 +401,21 @@ function describeAction(action: MindMapAction): string {
 .ai-tab-body--ideas {
   overflow-y: auto;
   max-height: 420px;
+}
+
+.ai-tab-body--input {
+  min-height: 0;
+}
+
+.ai-tab-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-input-footer {
+  flex-shrink: 0;
+  padding-top: 4px;
 }
 
 /* ---- Input tab ---- */
@@ -641,25 +682,52 @@ function describeAction(action: MindMapAction): string {
 
 /* ---- Mobile: bottom sheet ---- */
 @media (max-width: 800px) {
-  .ai-panel {
+  .ai-panel--sheet {
     position: fixed !important;
     left: 0 !important;
     right: 0 !important;
     bottom: 0 !important;
     top: auto !important;
     width: 100% !important;
+    z-index: 30;
   }
   .ai-panel-card {
+    display: flex;
+    flex-direction: column;
     border-radius: 18px 18px 0 0;
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-    max-height: 80dvh;
-    overflow-y: auto;
+    max-height: min(78dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 52px));
+    overflow: hidden;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   }
   .ai-panel-header {
     cursor: default;
     touch-action: none;
+    flex-shrink: 0;
   }
-  /* drag bar repurposed as visual indicator only */
+  .ai-tabs {
+    flex-shrink: 0;
+  }
+  .ai-tab-body {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .ai-tab-body--input {
+    display: flex;
+    flex-direction: column;
+  }
+  .ai-tab-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .ai-input-footer {
+    flex-shrink: 0;
+    padding-top: 10px;
+    border-top: 1px solid rgba(31,37,51,0.08);
+    background: var(--paper-card);
+  }
   .ai-drag-bar {
     width: 40px;
     height: 4px;
@@ -668,6 +736,10 @@ function describeAction(action: MindMapAction): string {
     border-radius: 2px;
     margin: 0 auto 8px;
   }
-  .ai-tab-body--ideas { max-height: 50dvh; }
+  .ai-tab-body--ideas {
+    max-height: none;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 </style>

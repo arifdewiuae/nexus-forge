@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computeRadialLayout } from '~/lib/mindmap/layout'
+import { useAIStore } from '~/stores/useAIStore'
 
 definePageMeta({ ssr: false })
 
@@ -35,6 +36,7 @@ function computePanelAnchor() {
 /* ---- Theme init: apply stored accent color on mount ---- */
 onMounted(() => {
   document.documentElement.style.setProperty('--accent', G.accentColor)
+  useAIStore().hydrateAgentFromStorage()
   if (!G.agentId) showAgentSelector.value = true
 })
 
@@ -194,7 +196,7 @@ function onAccentChange(color: string) {
         @select="showAgentSelector = false"
       />
 
-      <!-- Theme color + legend row (hidden on mobile — lives in toolbar overflow popover) -->
+      <!-- Theme color + legend row -->
       <div class="theme-picker-row">
         <span class="legend-item"><svg width="24" height="8"><line x1="0" y1="4" x2="24" y2="4" stroke="#1f2533" stroke-width="1.5" stroke-linecap="round" opacity="0.62"/></svg> branch</span>
         <span class="legend-item"><svg width="24" height="8"><line x1="0" y1="4" x2="24" y2="4" stroke="#1f2533" stroke-width="1.4" stroke-dasharray="5 4" stroke-linecap="round" opacity="0.5"/></svg> connect</span>

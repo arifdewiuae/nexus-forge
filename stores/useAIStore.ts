@@ -8,6 +8,14 @@ import { AGENTS } from '~/lib/ai/types'
 const AI_CACHE_KEY = 'nf:ai:result'
 const AGENT_KEY    = 'nf:agent:id'
 
+function readStoredAgentId(): string {
+  if (!import.meta.client) return ''
+  try {
+    const id = localStorage.getItem(AGENT_KEY) ?? ''
+    return AGENTS.some(a => a.id === id) ? id : ''
+  } catch { return '' }
+}
+
 function loadAnalysisResult(): AnalysisResult | null {
   if (!import.meta.client) return null
   try {
@@ -26,12 +34,20 @@ export const useAIStore = defineStore('ai', () => {
   const suggestions       = ref<MindMapAction[]>(cachedResult?.suggestions ?? [])
   const analysisResult    = ref<AnalysisResult | null>(cachedResult)
 
-  const agentId = ref<string>(
-    import.meta.client ? (localStorage.getItem(AGENT_KEY) ?? '') : ''
-  )
+  const agentId = ref('')
   const activeAgent = computed<AgentPersona | null>(
     () => AGENTS.find(a => a.id === agentId.value) ?? null
   )
+
+  function hydrateAgentFromStorage() {
+    agentId.value = readStoredAgentId()
+  }
+
+  watch(agentId, (id) => {
+    if (!import.meta.client) return
+    if (id) localStorage.setItem(AGENT_KEY, id)
+    else localStorage.removeItem(AGENT_KEY)
+  })
 
   function openAIPanel()  { isAIPanelOpen.value = true }
   function closeAIPanel() { isAIPanelOpen.value = false }
@@ -49,8 +65,8 @@ export const useAIStore = defineStore('ai', () => {
   function clearHighlights() { highlightedIds.value = new Set() }
 
   function setAgent(id: string) {
+    if (!AGENTS.some(a => a.id === id)) return
     agentId.value = id
-    if (import.meta.client) localStorage.setItem(AGENT_KEY, id)
   }
 
   watch(analysisResult, (result) => {
@@ -70,6 +86,6 @@ export const useAIStore = defineStore('ai', () => {
     agentId:           skipHydrate(agentId),
     activeAgent,
     openAIPanel, closeAIPanel, clearAnalysis, appendThinking, addSuggestion,
-    setHighlighted, clearHighlights, setAgent,
+    setHighlighted, clearHighlights, setAgent, hydrateAgentFromStorage,
   }
 })

@@ -56,7 +56,6 @@ export function createMindMapGraph(apiKey: string, callbacks: StreamCallbacks, s
       Math.floor(AI_CONFIG.MAX_TOKENS / 2),
       AI_CONFIG.TEMPERATURE,
       signal,
-      (text) => callbacks.emit({ type: 'thinking', text }),
     )
 
     result.actions.forEach(action => callbacks.emit({ type: 'suggestion', action }))

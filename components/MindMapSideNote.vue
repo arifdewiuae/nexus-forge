@@ -157,8 +157,11 @@ function measureCard() {
 onMounted(() => { measureCard(); window.addEventListener('resize', measureCard) })
 onBeforeUnmount(() => window.removeEventListener('resize', measureCard))
 watch(selected, (node) => {
-  sheetCollapsed.value = isMobileBreakpoint()
+  if (node && isMobileBreakpoint()) sheetCollapsed.value = false
   if (!editingLabel.value) draft.value = node?.label ?? ''
+})
+watch(() => G.isAIPanelOpen, (open) => {
+  if (open && isMobileBreakpoint()) sheetCollapsed.value = true
 })
 watch([selected, children], () => nextTick(measureCard))
 

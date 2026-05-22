@@ -81,6 +81,7 @@ export const useMindMapStore = defineStore('mindMap', () => {
     setHighlighted:  ai.setHighlighted,
     clearHighlights: ai.clearHighlights,
     setAgent:        ai.setAgent,
+    hydrateAgentFromStorage: ai.hydrateAgentFromStorage,
 
     /* ---- settings ---- */
     accentColor,
