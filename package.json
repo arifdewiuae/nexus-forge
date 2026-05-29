@@ -41,5 +41,8 @@
     "typescript": "^5.7.2",
     "unplugin-auto-import": "^21.0.0",
     "vitest": "^4.1.6"
+  },
+  "overrides": {
+    "uuid": ">=11.1.1"
   }
 }
