@@ -1,21 +1,22 @@
 <script setup lang="ts">
 import { computeRadialLayout } from '~/lib/mindmap/layout'
-import { useAIStore } from '~/stores/useAIStore'
 
 definePageMeta({ ssr: false })
 
 const canvasRef = ref<{ zoomIn(): void; zoomOut(): void; fitView(): void; centerOn(id: string): void; startEdit(node: { id: string; label: string; x: number; y: number; parent: string | null }): void; exportPNG(): Promise<void>; zoomPct: number } | null>(null)
 const toolbarRef = ref<{ aiBtn: HTMLButtonElement | null } | null>(null)
 
-const G = useMindMapStore()
+const graph = useGraphStore()
+const ai = useAIStore()
+const settings = useSettingsStore()
 
 const modal = ref<{ open: boolean; mode: 'export' | 'import' | 'help' | 'confirm' | 'settings' | null }>({ open: false, mode: null })
 function openModal(mode: 'export' | 'import' | 'help' | 'confirm' | 'settings') { modal.value = { open: true, mode } }
 function closeModal() { modal.value = { open: false, mode: null } }
 
 function handleConfirmedReset() {
-  G.reset()
-  G.clearAnalysis()
+  graph.reset()
+  ai.clearAnalysis()
 }
 
 const showAgentSelector = ref(false)
@@ -35,9 +36,9 @@ function computePanelAnchor() {
 
 /* ---- Theme init: apply stored accent color on mount ---- */
 onMounted(() => {
-  document.documentElement.style.setProperty('--accent', G.accentColor)
-  useAIStore().hydrateAgentFromStorage()
-  if (!G.agentId) showAgentSelector.value = true
+  document.documentElement.style.setProperty('--accent', settings.accentColor)
+  ai.hydrateAgentFromStorage()
+  if (!ai.agentId) showAgentSelector.value = true
 })
 
 /* ---- Keyboard shortcuts ---- */
@@ -47,7 +48,7 @@ function onKey(e: KeyboardEvent) {
 
   if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'Z')) {
     e.preventDefault()
-    if (e.shiftKey) G.redo(); else G.undo()
+    if (e.shiftKey) graph.redo(); else graph.undo()
     return
   }
 
@@ -58,23 +59,23 @@ function onKey(e: KeyboardEvent) {
   if (e.key === 'Escape') {
     if (modal.value.open) { closeModal(); return }
     if (showAgentSelector.value) { showAgentSelector.value = false; return }
-    if (G.editingId) { G.editingId = null; return }
-    if (G.linkFromId) { G.linkFromId = null; return }
-    if (G.isAIPanelOpen) { handleCloseAIPanel(); return }
+    if (graph.editingId) { graph.editingId = null; return }
+    if (graph.linkFromId) { graph.linkFromId = null; return }
+    if (ai.isAIPanelOpen) { handleCloseAIPanel(); return }
   }
   if (editable) return
 
   const toolMap: Record<string, 'select' | 'add' | 'branch' | 'connect' | 'erase'> = { v: 'select', a: 'add', l: 'branch', c: 'connect', e: 'erase' }
   const k = e.key.toLowerCase()
-  if (toolMap[k]) { G.tool = toolMap[k]; G.linkFromId = null; return }
+  if (toolMap[k]) { graph.tool = toolMap[k]; graph.linkFromId = null; return }
 
   if (e.key === 'Tab') {
     e.preventDefault()
-    const sel = G.selectedId ?? G.rootNode()?.id
+    const sel = graph.selectedId ?? graph.rootNode()?.id
     if (sel) {
-      G.addChild(sel, 'new idea')
+      graph.addChild(sel, 'new idea')
       nextTick(() => {
-        const node = G.nodeById(G.selectedId ?? '')
+        const node = graph.nodeById(graph.selectedId ?? '')
         if (node) canvasRef.value?.startEdit(node)
       })
     }
@@ -82,13 +83,13 @@ function onKey(e: KeyboardEvent) {
   }
   if (e.key === 'Enter') {
     e.preventDefault()
-    const node = G.nodeById(G.selectedId ?? '')
+    const node = graph.nodeById(graph.selectedId ?? '')
     if (node) canvasRef.value?.startEdit(node)
     return
   }
   if (e.key === 'Delete' || e.key === 'Backspace') {
-    if (G.selectedId && G.selectedId !== G.rootNode()?.id) {
-      e.preventDefault(); G.deleteSubtree(G.selectedId)
+    if (graph.selectedId && graph.selectedId !== graph.rootNode()?.id) {
+      e.preventDefault(); graph.deleteSubtree(graph.selectedId)
     }
     return
   }
@@ -102,36 +103,36 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 const { analyze, abort } = useAIAnalysis(() => openModal('settings'))
 
 async function handleAnalyze() {
-  if (!G.activeAgent) { showAgentSelector.value = true; return }
+  if (!ai.activeAgent) { showAgentSelector.value = true; return }
   computePanelAnchor()
-  G.openAIPanel()
+  ai.openAIPanel()
 }
 
 async function handleForceAnalyze() {
-  G.clearAnalysis()
+  ai.clearAnalysis()
   await analyze()
 }
 
 function handleCloseAIPanel() {
   abort()
-  G.closeAIPanel()
+  ai.closeAIPanel()
 }
 
 /* ---- Tidy layout ---- */
 async function handleTidy() {
-  if (G.isLayouting) return
-  G.isLayouting = true
+  if (graph.isLayouting) return
+  graph.isLayouting = true
   await nextTick()
-  const positions = computeRadialLayout(G.nodes)
-  G.applyLayout(positions)
+  const positions = computeRadialLayout(graph.nodes)
+  graph.applyLayout(positions)
   await nextTick()
   canvasRef.value?.fitView()
-  G.isLayouting = false
+  graph.isLayouting = false
 }
 
 /* ---- Theme ---- */
 function onAccentChange(color: string) {
-  G.setAccent(color)
+  settings.setAccent(color)
 }
 </script>
 
@@ -158,7 +159,7 @@ function onAccentChange(color: string) {
       />
       <MindMapSideNote
         @center-on="(id) => canvasRef?.centerOn(id)"
-        @start-edit="(id) => { const n = G.nodeById(id); if(n) canvasRef?.startEdit(n) }"
+        @start-edit="(id) => { const n = graph.nodeById(id); if(n) canvasRef?.startEdit(n) }"
       />
 
       <!-- Zoom readout -->
@@ -182,7 +183,7 @@ function onAccentChange(color: string) {
 
       <!-- AI analysis panel -->
       <AIPanel
-        v-if="G.isAIPanelOpen"
+        v-if="ai.isAIPanelOpen"
         :initialX="panelAnchor.x"
         :initialY="panelAnchor.y"
         @close="handleCloseAIPanel"
@@ -203,7 +204,7 @@ function onAccentChange(color: string) {
         <button class="legend-info-btn" @click="openModal('help')" title="How do these work?">?</button>
         <span class="legend-sep">·</span>
         <span class="theme-picker-label">accent</span>
-        <input type="color" class="theme-color-input" :value="G.accentColor" @input="(e) => onAccentChange((e.target as HTMLInputElement).value)" title="Change accent color"/>
+        <input type="color" class="theme-color-input" :value="settings.accentColor" @input="(e) => onAccentChange((e.target as HTMLInputElement).value)" title="Change accent color"/>
       </div>
 
       <!-- Modal -->

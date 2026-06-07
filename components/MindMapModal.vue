@@ -100,12 +100,11 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
-import { useMindMapStore } from '~/stores/mindMapStore'
 import { useApiKeys } from '~/composables/useApiKeys'
 
 const props = defineProps<{ open: boolean; mode: 'export' | 'import' | 'help' | 'confirm' | 'settings' | null }>()
 const emit = defineEmits<{ close: []; fit: []; confirm: []; exportpng: [] }>()
-const G = useMindMapStore()
+const graph = useGraphStore()
 
 const text = ref('')
 const status = ref({ kind: '', text: '' })
@@ -130,7 +129,7 @@ watch(() => props.open, (v) => {
   if (!v) return
   status.value = { kind: '', text: '' }
   if (props.mode === 'export') {
-    text.value = G.exportJSON()
+    text.value = graph.exportJSON()
     nextTick(() => { textarea.value?.focus(); textarea.value?.select() })
   } else if (props.mode === 'import') {
     text.value = ''
@@ -151,7 +150,7 @@ function download() {
   const blob = new Blob([text.value], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
-  const safeTitle = (G.title || 'mindmap').replace(/[^a-z0-9_\-]+/gi, '_')
+  const safeTitle = (graph.title || 'mindmap').replace(/[^a-z0-9_\-]+/gi, '_')
   a.href = url; a.download = `${safeTitle}.json`
   document.body.appendChild(a); a.click(); a.remove()
   URL.revokeObjectURL(url)
@@ -159,7 +158,7 @@ function download() {
 }
 
 function doImport() {
-  const res = G.importJSON(text.value)
+  const res = graph.importJSON(text.value)
   if (res.ok) {
     status.value = { kind: 'success', text: 'imported!' }
     setTimeout(() => { emit('close'); emit('fit') }, 700)

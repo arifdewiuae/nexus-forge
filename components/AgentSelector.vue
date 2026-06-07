@@ -7,19 +7,19 @@
       <div class="agent-cards">
         <div v-for="agent in AGENTS" :key="agent.id"
              class="agent-card"
-             :class="{ active: G.agentId === agent.id }"
+             :class="{ active: ai.agentId === agent.id }"
              @click="select(agent.id)">
           <div class="agent-card-name">{{ agent.name }}</div>
           <div class="agent-card-tagline">{{ agent.tagline }}</div>
           <button class="agent-card-select">
-            {{ G.agentId === agent.id ? '✓ selected' : 'select' }}
+            {{ ai.agentId === agent.id ? '✓ selected' : 'select' }}
           </button>
         </div>
       </div>
 
       <div style="margin-top:20px;text-align:right">
-        <button class="modal-action primary" @click="confirm" :disabled="!G.agentId">
-          {{ G.agentId ? 'done' : 'pick one first' }}
+        <button class="modal-action primary" @click="confirm" :disabled="!ai.agentId">
+          {{ ai.agentId ? 'done' : 'pick one first' }}
         </button>
       </div>
     </div>
@@ -27,18 +27,17 @@
 </template>
 
 <script setup lang="ts">
-import { useMindMapStore } from '~/stores/mindMapStore'
 import { AGENTS } from '~/lib/ai/types'
 
-const G = useMindMapStore()
+const ai = useAIStore()
 const emit = defineEmits<{ close: []; select: [] }>()
 
 function select(id: string) {
-  G.setAgent(id)
+  ai.setAgent(id)
 }
 
 function confirm() {
-  if (!G.agentId) return
+  if (!ai.agentId) return
   emit('select')
   emit('close')
 }

@@ -4,7 +4,8 @@ import { HEADER_FIREWORKS_KEY } from '~/lib/config'
 import { useApiKeys } from '~/composables/useApiKeys'
 
 export function useAIAnalysis(onKeyRequired?: () => void) {
-  const store = useMindMapStore()
+  const graphStore = useGraphStore()
+  const aiStore = useAIStore()
   const abortController = ref<AbortController | null>(null)
   const { fireworksKey } = useApiKeys()
 
@@ -18,11 +19,11 @@ export function useAIAnalysis(onKeyRequired?: () => void) {
 
     const controller = new AbortController()
     abortController.value = controller
-    store.isAnalyzing = true
-    store.clearAnalysis()
+    aiStore.isAnalyzing = true
+    aiStore.clearAnalysis()
 
     try {
-      const graph = serializeGraph(store.nodes, store.title, store.crossLinks)
+      const graph = serializeGraph(graphStore.nodes, graphStore.title, graphStore.crossLinks)
 
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (fireworksKey.value) headers[HEADER_FIREWORKS_KEY] = fireworksKey.value
@@ -30,7 +31,7 @@ export function useAIAnalysis(onKeyRequired?: () => void) {
       const response = await fetch('/api/ai/analyze', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ graph, agent: store.activeAgent, userPrompt: store.userPrompt }),
+        body: JSON.stringify({ graph, agent: aiStore.activeAgent, userPrompt: aiStore.userPrompt }),
         signal: controller.signal,
       })
 
@@ -56,12 +57,12 @@ export function useAIAnalysis(onKeyRequired?: () => void) {
 
           const event = JSON.parse(raw) as BoardStreamEvent
 
-          if (event.type === 'thinking')   store.appendThinking(event.text)
-          if (event.type === 'suggestion') store.addSuggestion(event.action)
+          if (event.type === 'thinking')   aiStore.appendThinking(event.text)
+          if (event.type === 'suggestion') aiStore.addSuggestion(event.action)
           if (event.type === 'done') {
-            store.analysisResult = {
-              thinking:   store.streamingThinking,
-              suggestions: store.suggestions,
+            aiStore.analysisResult = {
+              thinking:   aiStore.streamingThinking,
+              suggestions: aiStore.suggestions,
               tokensUsed: event.tokens,
               costUsd:    event.costUsd,
               latencyMs:  event.latencyMs,
@@ -72,9 +73,9 @@ export function useAIAnalysis(onKeyRequired?: () => void) {
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return
-      store.appendThinking(`\n\n[Error: ${err instanceof Error ? err.message : 'Unknown error'}]`)
+      aiStore.appendThinking(`\n\n[Error: ${err instanceof Error ? err.message : 'Unknown error'}]`)
     } finally {
-      store.isAnalyzing = false
+      aiStore.isAnalyzing = false
       abortController.value = null
     }
   }

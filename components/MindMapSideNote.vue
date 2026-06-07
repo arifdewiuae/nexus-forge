@@ -44,7 +44,7 @@
           <li v-for="c in children" :key="c.id" @click="jumpTo(c.id)">↓ branch: {{ c.label }}</li>
           <li v-for="cl in crossLinked" :key="cl.linkId" class="cross-link-item">
             <span @click="jumpTo(cl.node.id)">⤳ connect: {{ cl.node.label }}</span>
-            <button class="unlink-btn" @click.stop="G.removeCrossLink(cl.linkId)" title="Remove connection">✕</button>
+            <button class="unlink-btn" @click.stop="graph.removeCrossLink(cl.linkId)" title="Remove connection">✕</button>
           </li>
         </ul>
 
@@ -60,14 +60,14 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { useMindMapStore } from '~/stores/mindMapStore'
 
-const G = useMindMapStore()
+const graph = useGraphStore()
+const ai = useAIStore()
 const emit = defineEmits<{ centerOn: [id: string]; startEdit: [id: string] }>()
 
 const labelInput = ref<HTMLInputElement | null>(null)
 const editingLabel = ref(false)
-const draft = ref(G.nodeById(G.selectedId ?? '')?.label ?? '')
+const draft = ref(graph.nodeById(graph.selectedId ?? '')?.label ?? '')
 
 function isMobileBreakpoint(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(max-width: 1100px)').matches
@@ -76,26 +76,26 @@ const sheetCollapsed = ref(isMobileBreakpoint())
 const cardEl = ref<HTMLElement | null>(null)
 const cardSize = ref({ w: 268, h: 320 })
 
-const selected    = computed(() => G.nodeById(G.selectedId ?? ''))
-const ancestors   = computed(() => G.ancestorsOf(G.selectedId ?? ''))
-const children    = computed(() => G.childrenOf(G.selectedId ?? ''))
-const isRoot      = computed(() => G.selectedId === G.rootNode()?.id)
+const selected    = computed(() => graph.nodeById(graph.selectedId ?? ''))
+const ancestors   = computed(() => graph.ancestorsOf(graph.selectedId ?? ''))
+const children    = computed(() => graph.childrenOf(graph.selectedId ?? ''))
+const isRoot      = computed(() => graph.selectedId === graph.rootNode()?.id)
 const parentNode  = computed(() => {
   const p = selected.value?.parent
-  return p ? G.nodeById(p) : null
+  return p ? graph.nodeById(p) : null
 })
 
 const crossLinked = computed(() => {
-  const id = G.selectedId ?? ''
-  return G.crossLinksOf(id).map(cl => {
+  const id = graph.selectedId ?? ''
+  return graph.crossLinksOf(id).map(cl => {
     const otherId = cl.fromId === id ? cl.toId : cl.fromId
-    const node = G.nodeById(otherId)
+    const node = graph.nodeById(otherId)
     return node ? { node, linkId: cl.id } : null
   }).filter(Boolean) as { node: { id: string; label: string }; linkId: string }[]
 })
 
 const branchLabel = computed(() => {
-  const lvl = G.levelOf(G.selectedId ?? '')
+  const lvl = graph.levelOf(graph.selectedId ?? '')
   if (lvl === 0) return 'root thought'
   if (lvl === 1) return 'main branch'
   return `leaf · level ${lvl}`
@@ -117,7 +117,7 @@ function startLabelEdit() {
 function commitLabel() {
   if (!selected.value) return
   const v = draft.value.trim()
-  if (v) G.setLabel(selected.value.id, v)
+  if (v) graph.setLabel(selected.value.id, v)
   editingLabel.value = false
 }
 
@@ -127,25 +127,25 @@ function onLabelKey(e: KeyboardEvent) {
 }
 
 function jumpTo(id: string) {
-  G.selectedId = id; emit('centerOn', id)
+  graph.selectedId = id; emit('centerOn', id)
 }
 
 function addChildHere() {
   if (!selected.value) return
-  G.addChild(selected.value.id, 'new idea')
-  nextTick(() => { if (G.selectedId) emit('startEdit', G.selectedId) })
+  graph.addChild(selected.value.id, 'new idea')
+  nextTick(() => { if (graph.selectedId) emit('startEdit', graph.selectedId) })
 }
 
 function deleteHere() {
   if (isRoot.value) return
-  G.deleteSubtree(G.selectedId ?? '')
+  graph.deleteSubtree(graph.selectedId ?? '')
 }
 
 function detachFromParent() {
-  const id = G.selectedId
-  const root = G.rootNode()
+  const id = graph.selectedId
+  const root = graph.rootNode()
   if (!id || !root || id === root.id) return
-  G.reparent(id, root.id)
+  graph.reparent(id, root.id)
 }
 
 function measureCard() {
@@ -160,7 +160,7 @@ watch(selected, (node) => {
   if (node && isMobileBreakpoint()) sheetCollapsed.value = false
   if (!editingLabel.value) draft.value = node?.label ?? ''
 })
-watch(() => G.isAIPanelOpen, (open) => {
+watch(() => ai.isAIPanelOpen, (open) => {
   if (open && isMobileBreakpoint()) sheetCollapsed.value = true
 })
 watch([selected, children], () => nextTick(measureCard))

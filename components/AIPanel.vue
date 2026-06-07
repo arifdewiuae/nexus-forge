@@ -13,13 +13,13 @@
       >
         <div class="ai-drag-bar"></div>
         <h3 class="ai-panel-title">
-          <template v-if="G.isAnalyzing">
+          <template v-if="ai.isAnalyzing">
             <span class="ai-spin-icon">⟳</span>
             <span class="ai-thinking-word"> thinking</span><span class="ai-dots"></span>
           </template>
           <template v-else>✦ AI insights</template>
         </h3>
-        <p class="ai-panel-agent" v-if="G.activeAgent">{{ G.activeAgent.name }}</p>
+        <p class="ai-panel-agent" v-if="ai.activeAgent">{{ ai.activeAgent.name }}</p>
       </div>
 
       <button class="ai-close-btn" @click="emit('close')" title="Close">✕</button>
@@ -48,10 +48,10 @@
           <!-- Analyze current map -->
           <button
             class="ai-analyze-btn"
-            :disabled="G.isAnalyzing"
+            :disabled="ai.isAnalyzing"
             @click="submitAnalyze"
           >
-            {{ G.isAnalyzing ? '⟳ thinking…' : (G.analysisResult ? '↻ re-analyze map' : '✦ analyze my map') }}
+            {{ ai.isAnalyzing ? '⟳ thinking…' : (ai.analysisResult ? '↻ re-analyze map' : '✦ analyze my map') }}
           </button>
           <div class="ai-analyze-hint">AI reads your current board and suggests ideas</div>
 
@@ -61,10 +61,10 @@
           <div class="ai-prompt-input-row">
             <textarea
               class="ai-prompt-textarea"
-              v-model="G.userPrompt"
+              v-model="ai.userPrompt"
               placeholder="type or speak… AI will build the map"
               rows="3"
-              :disabled="G.isAnalyzing"
+              :disabled="ai.isAnalyzing"
               @keydown.meta.enter.prevent="submitWithPrompt"
               @keydown.ctrl.enter.prevent="submitWithPrompt"
             ></textarea>
@@ -83,10 +83,10 @@
         <div class="ai-input-footer">
           <button
             class="ai-submit-btn"
-            :disabled="G.isAnalyzing || !G.userPrompt.trim()"
+            :disabled="ai.isAnalyzing || !ai.userPrompt.trim()"
             @click="submitWithPrompt"
           >
-            {{ G.isAnalyzing ? '⟳ thinking…' : 'build map →' }}
+            {{ ai.isAnalyzing ? '⟳ thinking…' : 'build map →' }}
           </button>
           <div class="ai-submit-hint">or ⌘↵</div>
         </div>
@@ -97,26 +97,26 @@
         <!-- Reasoning text (live during stream, persists after done) -->
         <div v-if="thinkingText" class="ai-thinking-section">
           <button
-            v-if="!G.isAnalyzing"
+            v-if="!ai.isAnalyzing"
             class="ai-thinking-toggle"
             @click="thinkingCollapsed = !thinkingCollapsed"
           >
             {{ thinkingCollapsed ? '▶ show reasoning' : '▼ reasoning' }}
           </button>
           <div
-            v-show="G.isAnalyzing || !thinkingCollapsed"
+            v-show="ai.isAnalyzing || !thinkingCollapsed"
             class="ai-thinking"
             ref="thinkingEl"
             v-html="renderMarkdown(thinkingText)"
           ></div>
         </div>
-        <div v-else-if="!G.isAnalyzing && !G.suggestions.length" class="ai-thinking ai-thinking--empty">
+        <div v-else-if="!ai.isAnalyzing && !ai.suggestions.length" class="ai-thinking ai-thinking--empty">
           No ideas yet — switch to the <strong>input</strong> tab and hit <em>build map</em>.
         </div>
 
         <!-- Suggestions -->
-        <div v-if="G.suggestions.length" class="ai-suggestions">
-          <template v-for="(action, i) in G.suggestions" :key="i">
+        <div v-if="ai.suggestions.length" class="ai-suggestions">
+          <template v-for="(action, i) in ai.suggestions" :key="i">
             <div v-if="!rejectedSet.has(i)"
                  class="ai-suggestion-item"
                  :class="{ 'is-applied': appliedSet.has(i) }">
@@ -137,14 +137,14 @@
         </div>
 
         <!-- Stats + re-analyze -->
-        <div class="ai-footer" v-if="!G.isAnalyzing">
-          <div v-if="G.analysisResult" class="ai-stats">
-            {{ G.analysisResult.tokensUsed.toLocaleString() }} tokens ·
-            ${{ G.analysisResult.costUsd.toFixed(4) }} ·
-            {{ (G.analysisResult.latencyMs / 1000).toFixed(1) }}s
+        <div class="ai-footer" v-if="!ai.isAnalyzing">
+          <div v-if="ai.analysisResult" class="ai-stats">
+            {{ ai.analysisResult.tokensUsed.toLocaleString() }} tokens ·
+            ${{ ai.analysisResult.costUsd.toFixed(4) }} ·
+            {{ (ai.analysisResult.latencyMs / 1000).toFixed(1) }}s
           </div>
           <button
-            v-if="G.analysisResult"
+            v-if="ai.analysisResult"
             class="ai-reanalyze-btn"
             @click="emit('analyze')"
             title="Run a fresh analysis"
@@ -157,7 +157,6 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import { useMindMapStore } from '~/stores/mindMapStore'
 import { renderSafeMarkdown } from '~/lib/markdown/safeInline'
 import { useDraggable } from '~/composables/useDraggable'
 import { useSpeechRecognition } from '~/composables/useSpeechRecognition'
@@ -185,17 +184,18 @@ const emit = defineEmits<{
   analyze: []
 }>()
 
-const G = useMindMapStore()
+const graph = useGraphStore()
+const ai = useAIStore()
 const thinkingEl = ref<HTMLElement | null>(null)
 
 /* ---- Tab state ---- */
 const view = ref<'input' | 'ideas'>('input')
-const hasResults = computed(() => G.suggestions.length > 0 || !!G.analysisResult)
+const hasResults = computed(() => ai.suggestions.length > 0 || !!ai.analysisResult)
 
 // Prefer the live stream while analyzing; fall back to the captured result once done.
 // This ensures the reasoning text stays visible after the stream ends.
 const thinkingText = computed(() => {
-  const raw = G.streamingThinking || G.analysisResult?.thinking || ''
+  const raw = ai.streamingThinking || ai.analysisResult?.thinking || ''
   // Suggester emits raw JSON — strip if it leaked into older cached results
   const jsonStart = raw.search(/\n\s*\[\s*\{[\s\S]*?"kind"\s*:/)
   return jsonStart === -1 ? raw : raw.slice(0, jsonStart).trimEnd()
@@ -203,26 +203,26 @@ const thinkingText = computed(() => {
 const thinkingCollapsed = ref(false)
 
 // Auto-switch to ideas when analysis starts; reset collapse so reasoning streams visibly
-watch(() => G.isAnalyzing, (analyzing) => {
+watch(() => ai.isAnalyzing, (analyzing) => {
   if (analyzing) { view.value = 'ideas'; thinkingCollapsed.value = false }
 })
 
 /* ---- Submit handlers ---- */
 function submitAnalyze() {
-  if (G.isAnalyzing) return
+  if (ai.isAnalyzing) return
   emit('analyze')
   view.value = 'ideas'
 }
 
 function submitWithPrompt() {
-  if (G.isAnalyzing || !G.userPrompt.trim()) return
+  if (ai.isAnalyzing || !ai.userPrompt.trim()) return
   emit('analyze')
   view.value = 'ideas'
 }
 
 /* ---- Speech recognition (composable) ---- */
 const { isListening, error: micError, toggle: toggleMic, stop: stopMic } = useSpeechRecognition((text) => {
-  G.userPrompt = (G.userPrompt ? G.userPrompt + ' ' : '') + text
+  ai.userPrompt = (ai.userPrompt ? ai.userPrompt + ' ' : '') + text
 })
 
 /* ---- Position & drag (composable) ---- */
@@ -258,7 +258,7 @@ onUnmounted(() => {
 })
 
 /* ---- Auto-scroll thinking text ---- */
-watch(() => G.streamingThinking, () => {
+watch(() => ai.streamingThinking, () => {
   nextTick(() => {
     if (thinkingEl.value) thinkingEl.value.scrollTop = thinkingEl.value.scrollHeight
   })
@@ -268,7 +268,7 @@ watch(() => G.streamingThinking, () => {
 const renderMarkdown = renderSafeMarkdown
 
 /* ---- Suggestion state (composable) ---- */
-const { appliedSet, rejectedSet, apply: applyAction, undo: undoApply, reject: rejectAction } = useSuggestionState(G)
+const { appliedSet, rejectedSet, apply: applyAction, undo: undoApply, reject: rejectAction } = useSuggestionState(graph, ai)
 
 function doApply(action: MindMapAction, i: number) { applyAction(action, i) }
 
@@ -287,22 +287,22 @@ function kindLabel(kind: string): string {
 function describeAction(action: MindMapAction): string {
   switch (action.kind) {
     case 'add_node': {
-      const parent = G.nodeById(action.parentId)
+      const parent = graph.nodeById(action.parentId)
       return `Add "${action.label}" under "${parent?.label ?? action.parentId}"${action.description ? ' — ' + action.description : ''}`
     }
     case 'link_nodes': {
-      const from = G.nodeById(action.fromId)
-      const to   = G.nodeById(action.toId)
+      const from = graph.nodeById(action.fromId)
+      const to   = graph.nodeById(action.toId)
       return `Link "${from?.label ?? action.fromId}" → "${to?.label ?? action.toId}"`
     }
     case 'relabel': {
-      const node = G.nodeById(action.nodeId)
+      const node = graph.nodeById(action.nodeId)
       return `Rename "${node?.label ?? action.nodeId}" → "${action.label}"`
     }
     case 'highlight':
       return action.reason
     case 'expand_branch': {
-      const parent = G.nodeById(action.parentId)
+      const parent = graph.nodeById(action.parentId)
       return `Expand "${parent?.label ?? action.parentId}" with ${action.children.length} new child nodes`
     }
     default:

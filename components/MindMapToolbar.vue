@@ -3,7 +3,7 @@
     <div class="toolbar-scroll">
       <!-- Canvas tools -->
       <button v-for="t in tools" :key="t.id" class="tool-chip"
-              :class="{ active: G.tool === t.id }"
+              :class="{ active: graph.tool === t.id }"
               :title="`${t.label} (${t.key})`"
               :aria-label="`${t.label} tool (${t.key})`"
               @click="setTool(t.id)">
@@ -17,12 +17,12 @@
       <span class="tool-divider toolbar-divider"></span>
 
       <!-- History -->
-      <button class="tool-chip" :disabled="!G.canUndo" @click="G.undo()" title="Undo (⌘Z)" aria-label="Undo">
+      <button class="tool-chip" :disabled="!graph.canUndo" @click="graph.undo()" title="Undo (⌘Z)" aria-label="Undo">
         <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
         <span class="chip-label">↶ undo</span>
         <span class="chip-icon" aria-hidden="true">↶</span>
       </button>
-      <button class="tool-chip" :disabled="!G.canRedo" @click="G.redo()" title="Redo (⌘⇧Z)" aria-label="Redo">
+      <button class="tool-chip" :disabled="!graph.canRedo" @click="graph.redo()" title="Redo (⌘⇧Z)" aria-label="Redo">
         <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
         <span class="chip-label">↷ redo</span>
         <span class="chip-icon" aria-hidden="true">↷</span>
@@ -31,24 +31,24 @@
       <span class="tool-divider toolbar-divider"></span>
 
       <!-- AI actions -->
-      <button ref="aiBtn" class="tool-chip tool-chip--ai" :class="{ active: G.isAIPanelOpen }"
-              :disabled="G.isAnalyzing"
+      <button ref="aiBtn" class="tool-chip tool-chip--ai" :class="{ active: ai.isAIPanelOpen }"
+              :disabled="ai.isAnalyzing"
               @click="emit('analyze')"
               title="Ask AI to analyze your mind map (⌘↵)"
-              :aria-label="G.isAnalyzing ? 'AI thinking…' : 'Ask AI to analyze map'">
+              :aria-label="ai.isAnalyzing ? 'AI thinking…' : 'Ask AI to analyze map'">
         <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
-        <span class="chip-label chip-label--full">{{ G.isAnalyzing ? '⟳ thinking…' : '✦ ask AI' }}</span>
-        <span class="chip-label chip-label--short">{{ G.isAnalyzing ? '⟳' : '✦ AI' }}</span>
-        <span class="chip-icon" aria-hidden="true">{{ G.isAnalyzing ? '⟳' : '✦' }}</span>
+        <span class="chip-label chip-label--full">{{ ai.isAnalyzing ? '⟳ thinking…' : '✦ ask AI' }}</span>
+        <span class="chip-label chip-label--short">{{ ai.isAnalyzing ? '⟳' : '✦ AI' }}</span>
+        <span class="chip-icon" aria-hidden="true">{{ ai.isAnalyzing ? '⟳' : '✦' }}</span>
       </button>
 
-      <button class="tool-chip" :class="{ 'chip-thinking': G.isLayouting }" :disabled="G.isLayouting" @click="emit('tidy')" title="Tidy layout" aria-label="Tidy radial layout">
+      <button class="tool-chip" :class="{ 'chip-thinking': graph.isLayouting }" :disabled="graph.isLayouting" @click="emit('tidy')" title="Tidy layout" aria-label="Tidy radial layout">
         <svg class="chip-blob" preserveAspectRatio="none" viewBox="0 0 120 34"><path :d="TOOL_BLOB" filter="url(#wobble)"/></svg>
         <span class="chip-label">
-          <span v-if="G.isLayouting"><span class="spin-icon">⟳</span> tidying…</span>
+          <span v-if="graph.isLayouting"><span class="spin-icon">⟳</span> tidying…</span>
           <span v-else>⊹ tidy</span>
         </span>
-        <span class="chip-icon" aria-hidden="true">{{ G.isLayouting ? '⟳' : '⊹' }}</span>
+        <span class="chip-icon" aria-hidden="true">{{ graph.isLayouting ? '⟳' : '⊹' }}</span>
       </button>
     </div>
 
@@ -78,15 +78,15 @@
           <button class="overflow-item" role="menuitem" @click="pick('fit')">⊡ fit</button>
           <button class="overflow-item" role="menuitem" @click="pick('export')">⇪ export</button>
           <button class="overflow-item" role="menuitem" @click="pick('import')">⇩ import</button>
-          <button class="overflow-item" role="menuitem" @click="pick('agent')">{{ G.activeAgent ? G.activeAgent.name : '⬡ agent' }}</button>
+          <button class="overflow-item" role="menuitem" @click="pick('agent')">{{ ai.activeAgent ? ai.activeAgent.name : '⬡ agent' }}</button>
           <button class="overflow-item" role="menuitem" @click="pick('help')">? help</button>
           <button class="overflow-item" :class="{ 'key-warn': !hasKey }" role="menuitem" @click="pick('settings')">⚙ settings{{ hasKey ? '' : ' !' }}</button>
           <button class="overflow-item danger" role="menuitem" @click="pick('reset')">↻ reset</button>
         </div>
         <div class="overflow-accent">
           <span>accent</span>
-          <input type="color" class="overflow-color" :value="G.accentColor"
-                 @input="(e) => G.setAccent((e.target as HTMLInputElement).value)"
+          <input type="color" class="overflow-color" :value="settings.accentColor"
+                 @input="(e) => settings.setAccent((e.target as HTMLInputElement).value)"
                  title="Change accent color"/>
         </div>
       </div>
@@ -96,10 +96,11 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { useMindMapStore } from '~/stores/mindMapStore'
 import { useApiKeys } from '~/composables/useApiKeys'
 
-const G = useMindMapStore()
+const graph = useGraphStore()
+const ai = useAIStore()
+const settings = useSettingsStore()
 const { hasKey } = useApiKeys()
 
 const emit = defineEmits<{
@@ -131,7 +132,7 @@ const tools = [
 ]
 
 function setTool(id: 'select' | 'add' | 'branch' | 'connect' | 'erase') {
-  G.tool = id; G.linkFromId = null
+  graph.tool = id; graph.linkFromId = null
 }
 
 function toggleOverflow() {
@@ -148,7 +149,7 @@ type OverflowAction = 'fit' | 'export' | 'import' | 'agent' | 'help' | 'settings
 
 function pick(action: OverflowAction) {
   overflowOpen.value = false
-  emit(action)
+  ;(emit as (e: OverflowAction) => void)(action)
 }
 
 function onDocKey(e: KeyboardEvent) {

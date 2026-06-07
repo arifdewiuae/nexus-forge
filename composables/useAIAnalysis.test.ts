@@ -95,7 +95,12 @@ describe('useAIAnalysis – 401 path', () => {
   it('calls onKeyRequired when fetch returns 401', async () => {
     // Stub Nuxt / Vue globals before importing the composable
     vi.stubGlobal('useRuntimeConfig', () => ({ public: {} }))
-    vi.stubGlobal('useMindMapStore', () => ({
+    vi.stubGlobal('useGraphStore', () => ({
+      nodes: [],
+      title: 'test',
+      crossLinks: [],
+    }))
+    vi.stubGlobal('useAIStore', () => ({
       isAnalyzing: false,
       clearAnalysis: vi.fn(),
       appendThinking: vi.fn(),
@@ -103,9 +108,6 @@ describe('useAIAnalysis – 401 path', () => {
       streamingThinking: '',
       suggestions: [],
       analysisResult: null,
-      nodes: [],
-      title: 'test',
-      crossLinks: [],
       activeAgent: null,
       userPrompt: '',
     }))

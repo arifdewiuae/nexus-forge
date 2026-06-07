@@ -7,8 +7,8 @@ vi.stubGlobal('import.meta.client', true)
 
 // skipHydrate from pinia is available, but we also need its Nuxt marker to be
 // a no-op (it already is in non-SSR mode).
-vi.mock('#app', () => ({}), { virtual: true })
-vi.mock('#imports', () => ({}), { virtual: true })
+vi.mock('#app', () => ({}))
+vi.mock('#imports', () => ({}))
 
 // Dynamic import AFTER stubs so the store sees them
 const { useGraphStore } = await import('./useGraphStore')
