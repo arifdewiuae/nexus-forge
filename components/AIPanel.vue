@@ -156,6 +156,7 @@ import { renderSafeMarkdown } from '~/lib/markdown/safeInline'
 import { useDraggable } from '~/composables/useDraggable'
 import { useSpeechRecognition } from '~/composables/useSpeechRecognition'
 import { useSuggestionState } from '~/composables/useSuggestionState'
+import { stripSuggesterJson } from '~/lib/ai/thinking'
 import type { MindMapAction } from '~/lib/ai/types'
 
 function isTouchDevice(): boolean {
@@ -189,12 +190,9 @@ const hasResults = computed(() => ai.suggestions.length > 0 || !!ai.analysisResu
 
 // Prefer the live stream while analyzing; fall back to the captured result once done.
 // This ensures the reasoning text stays visible after the stream ends.
-const thinkingText = computed(() => {
-  const raw = ai.streamingThinking || ai.analysisResult?.thinking || ''
-  // Suggester emits raw JSON — strip if it leaked into older cached results
-  const jsonStart = raw.search(/\n\s*\[\s*\{[\s\S]*?"kind"\s*:/)
-  return jsonStart === -1 ? raw : raw.slice(0, jsonStart).trimEnd()
-})
+const thinkingText = computed(() =>
+  stripSuggesterJson(ai.streamingThinking || ai.analysisResult?.thinking || ''),
+)
 const thinkingCollapsed = ref(false)
 
 // Auto-switch to ideas when analysis starts; reset collapse so reasoning streams visibly

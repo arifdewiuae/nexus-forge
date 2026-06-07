@@ -1,7 +1,7 @@
 <template>
   <div class="ai-suggestion-item" :class="{ 'is-applied': applied }">
     <div class="ai-suggestion-kind">{{ kindLabel(action.kind) }}</div>
-    <div class="ai-suggestion-text">{{ describeAction(action) }}</div>
+    <div class="ai-suggestion-text">{{ description }}</div>
     <div class="ai-suggestion-actions">
       <template v-if="applied">
         <span class="ai-suggestion-done">✓ applied</span>
@@ -17,8 +17,9 @@
 
 <script setup lang="ts">
 import type { MindMapAction } from '~/lib/ai/types'
+import { kindLabel, describeAction } from '~/lib/ai/describeAction'
 
-defineProps<{
+const props = defineProps<{
   action: MindMapAction
   applied: boolean
 }>()
@@ -31,42 +32,10 @@ const emit = defineEmits<{
 
 const graph = useGraphStore()
 
-const KIND_LABELS: Record<string, string> = {
-  add_node:      '+ new node',
-  link_nodes:    '↗ link nodes',
-  relabel:       '✎ rename',
-  highlight:     '◎ flag',
-  expand_branch: '⊕ expand branch',
-}
-function kindLabel(kind: string): string {
-  return KIND_LABELS[kind] ?? kind
-}
-
-function describeAction(action: MindMapAction): string {
-  switch (action.kind) {
-    case 'add_node': {
-      const parent = graph.nodeById(action.parentId)
-      return `Add "${action.label}" under "${parent?.label ?? action.parentId}"${action.description ? ' — ' + action.description : ''}`
-    }
-    case 'link_nodes': {
-      const from = graph.nodeById(action.fromId)
-      const to   = graph.nodeById(action.toId)
-      return `Link "${from?.label ?? action.fromId}" → "${to?.label ?? action.toId}"`
-    }
-    case 'relabel': {
-      const node = graph.nodeById(action.nodeId)
-      return `Rename "${node?.label ?? action.nodeId}" → "${action.label}"`
-    }
-    case 'highlight':
-      return action.reason
-    case 'expand_branch': {
-      const parent = graph.nodeById(action.parentId)
-      return `Expand "${parent?.label ?? action.parentId}" with ${action.children.length} new child nodes`
-    }
-    default:
-      return JSON.stringify(action)
-  }
-}
+// Resolve node ids to labels (fall back to the id) for the description text.
+const description = computed(() =>
+  describeAction(props.action, (id) => graph.nodeById(id)?.label ?? id),
+)
 </script>
 
 <style scoped>

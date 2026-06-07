@@ -1,6 +1,6 @@
 import type { BoardStreamEvent } from '~/lib/ai/types'
 import { serializeGraph } from '~/lib/mindmap/serializer'
-import { HEADER_FIREWORKS_KEY } from '~/lib/config'
+import { HEADER_FIREWORKS_KEY, API_ROUTES } from '~/lib/config'
 import { useApiKeys } from '~/composables/useApiKeys'
 
 export function useAIAnalysis(onKeyRequired?: () => void) {
@@ -28,7 +28,7 @@ export function useAIAnalysis(onKeyRequired?: () => void) {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (fireworksKey.value) headers[HEADER_FIREWORKS_KEY] = fireworksKey.value
 
-      const response = await fetch('/api/ai/analyze', {
+      const response = await fetch(API_ROUTES.analyze, {
         method: 'POST',
         headers,
         body: JSON.stringify({ graph, agent: aiStore.activeAgent, userPrompt: aiStore.userPrompt }),

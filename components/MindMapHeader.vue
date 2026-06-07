@@ -23,6 +23,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import { formatBoardDate } from '~/lib/format/boardDate'
 
 const graph = useGraphStore()
 const titleEl = ref<HTMLElement | null>(null)
@@ -47,13 +48,7 @@ function onTitleKey(e: KeyboardEvent) {
   }
 }
 
-function fmtDate() {
-  const d = new Date()
-  const day = d.toLocaleDateString(undefined, { weekday: 'short' }).toLowerCase()
-  const mon = d.toLocaleDateString(undefined, { month: 'short' }).toLowerCase()
-  return `${day}, ${mon} ${d.getDate()}`
-}
-const dateStr = fmtDate()
+const dateStr = formatBoardDate(new Date())
 
 const saveLabel = computed(() => {
   if (graph.saveStatus === 'saving') return 'saving…'

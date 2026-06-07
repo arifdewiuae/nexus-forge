@@ -23,6 +23,11 @@ export const RATE_LIMIT = {
 export const HEADER_FIREWORKS_KEY = 'x-fireworks-key'
 export const STORAGE_KEY_API_KEYS = 'nf:api-keys'
 
+/** Internal API routes — no hardcoded paths at call sites. */
+export const API_ROUTES = {
+  analyze: '/api/ai/analyze',
+} as const
+
 /**
  * Security headers applied to every response (server/middleware/securityHeaders.ts).
  * Mirrored in vercel.json so Vercel's CDN sets them on static assets too — keep the
