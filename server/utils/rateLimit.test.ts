@@ -67,4 +67,31 @@ describe('checkRateLimit', () => {
     const second = checkRateLimit(key)
     expect(first.remaining - second.remaining).toBe(1)
   })
+
+  it('honours a custom per-tier limit', () => {
+    const key = `test-tier-${Math.random()}`
+    const OWN = 100
+    for (let i = 0; i < OWN; i++) {
+      expect(checkRateLimit(key, OWN).allowed).toBe(true)
+    }
+    expect(checkRateLimit(key, OWN).allowed).toBe(false)
+  })
+
+  it('reports retryAfterSec within the window when blocked', () => {
+    const key = `test-retry-${Math.random()}`
+    for (let i = 0; i < MAX_REQUESTS; i++) checkRateLimit(key)
+    const blocked = checkRateLimit(key)
+    expect(blocked.allowed).toBe(false)
+    expect(blocked.retryAfterSec).toBeGreaterThan(0)
+    expect(blocked.retryAfterSec).toBeLessThanOrEqual(WINDOW_MS / 1000)
+  })
+
+  it('shrinks retryAfterSec as the window elapses', () => {
+    const key = `test-retry-shrink-${Math.random()}`
+    for (let i = 0; i < MAX_REQUESTS; i++) checkRateLimit(key)
+    const before = checkRateLimit(key).retryAfterSec
+    vi.advanceTimersByTime(WINDOW_MS / 2)
+    const after = checkRateLimit(key).retryAfterSec
+    expect(after).toBeLessThan(before)
+  })
 })
