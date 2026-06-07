@@ -2,6 +2,12 @@
   "name": "nexus-forge",
   "private": true,
   "type": "module",
+  "description": "Infinite-canvas AI mind-map with streaming personalities (Nuxt 3 · LangGraph · SSE).",
+  "homepage": "https://nexus-forge-virid.vercel.app/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arifdewiuae/nexus-forge.git"
+  },
   "packageManager": "pnpm@11.5.1",
   "engines": {
     "node": ">=24"
