@@ -3,6 +3,8 @@
    ========================================================= */
 import { defineStore, skipHydrate } from 'pinia'
 import type { MindMapNode, CrossLink } from '~/lib/ai/types'
+import { TOOL, SAVE_STATUS } from '~/lib/mindmap/constants'
+import type { Tool, SaveStatus } from '~/lib/mindmap/constants'
 
 const STORAGE_KEY = 'handwritten-mindmap-v1'
 const HISTORY_LIMIT = 80
@@ -59,9 +61,9 @@ export const useGraphStore = defineStore('graph', () => {
   const crossLinks = ref<CrossLink[]>([])
   const selectedId = ref<string | null>(initial.nodes.find(n => n.parent === null)?.id ?? initial.nodes[0]?.id ?? null)
   const linkFromId = ref<string | null>(null)
-  const tool       = ref<'select' | 'add' | 'branch' | 'connect' | 'erase'>('select')
+  const tool       = ref<Tool>(TOOL.select)
   const editingId  = ref<string | null>(null)
-  const saveStatus = ref<'idle' | 'saving' | 'saved'>('saved')
+  const saveStatus = ref<SaveStatus>(SAVE_STATUS.saved)
   const isLayouting = ref(false)
 
   /* ---- undo/redo ---- */
@@ -92,13 +94,13 @@ export const useGraphStore = defineStore('graph', () => {
   watch(
     () => ({ t: title.value, x: nextId.value, n: nodes.value }),
     () => {
-      saveStatus.value = 'saving'
+      saveStatus.value = SAVE_STATUS.saving
       if (saveTimer) clearTimeout(saveTimer)
       saveTimer = setTimeout(() => {
         try {
           if (import.meta.client) localStorage.setItem(STORAGE_KEY, snapshot())
-          saveStatus.value = 'saved'
-        } catch { saveStatus.value = 'idle' }
+          saveStatus.value = SAVE_STATUS.saved
+        } catch { saveStatus.value = SAVE_STATUS.idle }
       }, 220)
     },
     { deep: true }

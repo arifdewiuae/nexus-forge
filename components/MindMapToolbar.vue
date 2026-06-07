@@ -97,6 +97,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useApiKeys } from '~/composables/useApiKeys'
+import { TOOL } from '~/lib/mindmap/constants'
+import type { Tool } from '~/lib/mindmap/constants'
 
 const graph = useGraphStore()
 const ai = useAIStore()
@@ -124,14 +126,14 @@ defineExpose({ aiBtn })
 const TOOL_BLOB = 'M 8 4 Q 60 1, 112 5 Q 116 17, 110 30 Q 60 33, 6 28 Q 3 14, 8 4 Z'
 
 const tools = [
-  { id: 'select'  as const, label: 'select',  icon: '↖',  key: 'V' },
-  { id: 'add'     as const, label: '+ node',  icon: '+',   key: 'A' },
-  { id: 'branch'  as const, label: '↗ branch', icon: '↗', key: 'L' },
-  { id: 'connect' as const, label: '⤳ connect', icon: '⤳', key: 'C' },
-  { id: 'erase'   as const, label: '✗ erase', icon: '✗',  key: 'E' },
+  { id: TOOL.select,  label: 'select',  icon: '↖',  key: 'V' },
+  { id: TOOL.add,     label: '+ node',  icon: '+',   key: 'A' },
+  { id: TOOL.branch,  label: '↗ branch', icon: '↗', key: 'L' },
+  { id: TOOL.connect, label: '⤳ connect', icon: '⤳', key: 'C' },
+  { id: TOOL.erase,   label: '✗ erase', icon: '✗',  key: 'E' },
 ]
 
-function setTool(id: 'select' | 'add' | 'branch' | 'connect' | 'erase') {
+function setTool(id: Tool) {
   graph.tool = id; graph.linkFromId = null
 }
 

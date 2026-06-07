@@ -151,6 +151,7 @@ import { useNodeDrag } from '~/composables/useNodeDrag'
 import { useLabelEditor } from '~/composables/useLabelEditor'
 import { nodeSize, rotFor, sketchRectPath, underlinePath, edgePath } from '~/lib/mindmap/geometry'
 import { exportPng } from '~/lib/mindmap/exportPng'
+import { TOOL } from '~/lib/mindmap/constants'
 import type { MindMapNode } from '~/lib/ai/types'
 
 const graph = useGraphStore()
@@ -290,7 +291,7 @@ function onCanvasPointerDown(e: PointerEvent) {
   if (e.button !== 0 && e.button !== 1) return
   if (graph.editingId) { commitLabelEditor(true); return }
 
-  if (graph.tool === 'add' && e.button === 0) {
+  if (graph.tool === TOOL.add && e.button === 0) {
     const w = screenToWorld(e.clientX, e.clientY)
     const parentId = graph.selectedId ?? graph.rootNode()?.id
     if (parentId) {
@@ -302,7 +303,7 @@ function onCanvasPointerDown(e: PointerEvent) {
     return
   }
 
-  if ((graph.tool === 'branch' || graph.tool === 'connect') && graph.linkFromId) { graph.linkFromId = null; return }
+  if ((graph.tool === TOOL.branch || graph.tool === TOOL.connect) && graph.linkFromId) { graph.linkFromId = null; return }
 
   panStart = { x: e.clientX, y: e.clientY, px: pan.value.x, py: pan.value.y, moved: false }
   panning.value = true
@@ -324,7 +325,7 @@ function onPanUp() {
 }
 
 function onCanvasPointerMove(e: PointerEvent) {
-  if ((graph.tool === 'branch' || graph.tool === 'connect') && graph.linkFromId) {
+  if ((graph.tool === TOOL.branch || graph.tool === TOOL.connect) && graph.linkFromId) {
     cursorWorld.value = screenToWorld(e.clientX, e.clientY)
   } else if (cursorWorld.value) {
     cursorWorld.value = null
@@ -335,9 +336,9 @@ function onNodePointerDown(e: PointerEvent, node: MindMapNode) {
   e.stopPropagation()
   if (graph.editingId && graph.editingId !== node.id) commitLabelEditor(true)
 
-  if (graph.tool === 'erase') { graph.deleteSubtree(node.id); return }
+  if (graph.tool === TOOL.erase) { graph.deleteSubtree(node.id); return }
 
-  if (graph.tool === 'branch') {
+  if (graph.tool === TOOL.branch) {
     if (!graph.linkFromId) {
       graph.linkFromId = node.id; graph.selectedId = node.id
     } else if (graph.linkFromId !== node.id) {
@@ -351,7 +352,7 @@ function onNodePointerDown(e: PointerEvent, node: MindMapNode) {
     return
   }
 
-  if (graph.tool === 'connect') {
+  if (graph.tool === TOOL.connect) {
     if (!graph.linkFromId) {
       graph.linkFromId = node.id; graph.selectedId = node.id
     } else if (graph.linkFromId !== node.id) {
@@ -374,17 +375,17 @@ function onNodeDblClick(e: MouseEvent, node: MindMapNode) {
 const canvasClass = computed(() => ({
   canvas: true,
   panning: panning.value,
-  'add-mode': graph.tool === 'add',
-  'link-mode': graph.tool === 'branch',
-  'connect-mode': graph.tool === 'connect',
-  'erase-mode': graph.tool === 'erase',
+  'add-mode': graph.tool === TOOL.add,
+  'link-mode': graph.tool === TOOL.branch,
+  'connect-mode': graph.tool === TOOL.connect,
+  'erase-mode': graph.tool === TOOL.erase,
 }))
 
 const linkPreview = computed(() => {
-  if ((graph.tool !== 'branch' && graph.tool !== 'connect') || !graph.linkFromId || !cursorWorld.value) return null
+  if ((graph.tool !== TOOL.branch && graph.tool !== TOOL.connect) || !graph.linkFromId || !cursorWorld.value) return null
   const a = graph.nodeById(graph.linkFromId)
   if (!a) return null
-  return { x1: a.x, y1: a.y, x2: cursorWorld.value.x, y2: cursorWorld.value.y, dashed: graph.tool === 'connect' }
+  return { x1: a.x, y1: a.y, x2: cursorWorld.value.x, y2: cursorWorld.value.y, dashed: graph.tool === TOOL.connect }
 })
 
 /* ---- imperative API (exposed to parent); pan/zoom/fit live in useViewport ---- */

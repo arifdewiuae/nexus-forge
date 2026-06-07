@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computeRadialLayout } from '~/lib/mindmap/layout'
+import { TOOL } from '~/lib/mindmap/constants'
+import type { Tool } from '~/lib/mindmap/constants'
 
 definePageMeta({ ssr: false })
 
@@ -65,7 +67,7 @@ function onKey(e: KeyboardEvent) {
   }
   if (editable) return
 
-  const toolMap: Record<string, 'select' | 'add' | 'branch' | 'connect' | 'erase'> = { v: 'select', a: 'add', l: 'branch', c: 'connect', e: 'erase' }
+  const toolMap: Record<string, Tool> = { v: TOOL.select, a: TOOL.add, l: TOOL.branch, c: TOOL.connect, e: TOOL.erase }
   const k = e.key.toLowerCase()
   if (toolMap[k]) { graph.tool = toolMap[k]; graph.linkFromId = null; return }
 

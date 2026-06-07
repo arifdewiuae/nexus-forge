@@ -13,7 +13,7 @@
       <span class="header-date">{{ dateStr }}</span>
     </div>
     <div class="header-meta">
-      <span class="save-indicator" :class="graph.saveStatus === 'saved' ? 'saved' : 'dirty'">
+      <span class="save-indicator" :class="graph.saveStatus === SAVE_STATUS.saved ? 'saved' : 'dirty'">
         <span class="save-dot"></span>{{ saveLabel }}
       </span>
       <span>·  {{ graph.nodes.length }} thoughts</span>
@@ -24,6 +24,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { formatBoardDate } from '~/lib/format/boardDate'
+import { SAVE_STATUS } from '~/lib/mindmap/constants'
 
 const graph = useGraphStore()
 const titleEl = ref<HTMLElement | null>(null)
@@ -51,8 +52,8 @@ function onTitleKey(e: KeyboardEvent) {
 const dateStr = formatBoardDate(new Date())
 
 const saveLabel = computed(() => {
-  if (graph.saveStatus === 'saving') return 'saving…'
-  if (graph.saveStatus === 'saved') return 'all saved'
+  if (graph.saveStatus === SAVE_STATUS.saving) return 'saving…'
+  if (graph.saveStatus === SAVE_STATUS.saved) return 'all saved'
   return 'unsaved'
 })
 
