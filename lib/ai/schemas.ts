@@ -72,7 +72,7 @@ export const MindMapActionsSchema = z.array(MindMapActionSchema)
 export const BoardStreamEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('thinking'),   text: z.string() }),
   z.object({ type: z.literal('suggestion'), action: MindMapActionSchema }),
-  z.object({ type: z.literal('done'),       latencyMs: z.number(), tokens: z.number(), costUsd: z.number() }),
+  z.object({ type: z.literal('done'),       latencyMs: z.number(), tokens: z.number(), costUsd: z.number(), truncated: z.boolean().optional() }),
   z.object({ type: z.literal('error'),      message: z.string() }),
 ])
 

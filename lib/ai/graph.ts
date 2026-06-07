@@ -13,6 +13,7 @@ const GraphState = Annotation.Root({
   actions:      Annotation<MindMapAction[]>(),
   inputTokens:  Annotation<number>(),
   outputTokens: Annotation<number>(),
+  truncated:    Annotation<boolean>(),
 })
 
 type MindMapGraphState = typeof GraphState.State
@@ -41,6 +42,7 @@ export function createMindMapGraph(apiKey: string, callbacks: StreamCallbacks, s
       analysis:     result.analysis,
       inputTokens:  (state.inputTokens  ?? 0) + result.inputTokens,
       outputTokens: (state.outputTokens ?? 0) + result.outputTokens,
+      truncated:    result.truncated,
     }
   }
 
@@ -106,5 +108,6 @@ export async function runMindMapAnalysis(
     latencyMs: Date.now() - startedAt,
     tokens:    (finalState.inputTokens ?? 0) + (finalState.outputTokens ?? 0),
     costUsd,
+    truncated: finalState.truncated ?? false,
   })
 }

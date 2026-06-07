@@ -2,10 +2,12 @@ export default defineEventHandler((event) => {
   const origin = getHeader(event, 'origin') ?? ''
   const host   = getHeader(event, 'host')   ?? ''
 
-  // Allow same-origin requests and localhost dev
+  // Allow same-origin requests and localhost dev.
+  // Exact match only — `origin.includes(host)` would let evil-<host> through.
   const allowed =
     !origin ||
-    origin.includes(host) ||
+    origin === `https://${host}` ||
+    origin === `http://${host}` ||
     /^https?:\/\/localhost(:\d+)?$/.test(origin)
 
   if (allowed) {

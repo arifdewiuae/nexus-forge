@@ -1,7 +1,9 @@
+import { randomUUID } from 'node:crypto'
 import { runMindMapAnalysis } from '~/lib/ai/graph'
 import type { BoardStreamEvent } from '~/lib/ai/types'
 import { AnalyzeRequestSchema } from '~/lib/ai/schemas'
-import { HEADER_FIREWORKS_KEY } from '~/lib/config'
+import { checkModeration } from '~/lib/ai/moderation'
+import { HEADER_FIREWORKS_KEY, RATE_LIMIT } from '~/lib/config'
 import { checkRateLimitAsync } from '~/server/utils/rateLimit'
 
 function resolveApiKey(
@@ -27,10 +29,14 @@ export default defineEventHandler(async (event) => {
     ?? event.node.req.socket?.remoteAddress
     ?? 'unknown'
   const rateLimitKey = userKey ? `key:${userKey.slice(-8)}` : `ip:${ip}`
-  const { allowed, remaining } = await checkRateLimitAsync(rateLimitKey)
+  // Own-key callers get a looser budget than the shared demo key (our spend).
+  const limit = userKey ? RATE_LIMIT.OWN_MAX_REQUESTS : RATE_LIMIT.DEMO_MAX_REQUESTS
+  const { allowed, remaining, retryAfterSec } = await checkRateLimitAsync(rateLimitKey, limit)
+  setResponseHeader(event, 'X-RateLimit-Limit', String(limit))
   setResponseHeader(event, 'X-RateLimit-Remaining', String(remaining))
   if (!allowed) {
-    throw createError({ statusCode: 429, message: 'Too many requests. Try again in an hour.' })
+    setResponseHeader(event, 'Retry-After', retryAfterSec)
+    throw createError({ statusCode: 429, message: 'Too many requests. Try again later.' })
   }
 
   const raw = await readBody<unknown>(event)
@@ -56,6 +62,14 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'Add some nodes or write a prompt before asking AI.' })
   }
 
+  // Correlation id for log archaeology; echoed to the client for support.
+  const requestId = randomUUID()
+  setResponseHeader(event, 'X-Request-Id', requestId)
+  console.info(JSON.stringify({
+    tag: 'ai.analyze', requestId, nodeCount: graph.nodeCount,
+    agent: agent?.id ?? null, tier: userKey ? 'own' : 'demo',
+  }))
+
   setResponseHeaders(event, {
     'Content-Type':      'text/event-stream',
     'Cache-Control':     'no-cache, no-transform',
@@ -68,6 +82,16 @@ export default defineEventHandler(async (event) => {
 
   function send(data: BoardStreamEvent): void {
     event.node.res.write(`data: ${JSON.stringify(data)}\n\n`)
+  }
+
+  // Moderation runs after rate limit, before the LLM. Blocks return as an SSE
+  // error frame (not a 4xx) so the client stays on one code path.
+  const moderationText = [userPrompt ?? '', ...graph.nodes.map(n => n.label)].join('\n')
+  const moderation = await checkModeration(moderationText, process.env.OPENAI_API_KEY)
+  if (moderation.blocked) {
+    send({ type: 'error', message: moderation.reason ?? 'Your request was blocked by content moderation.' })
+    event.node.res.end()
+    return
   }
 
   try {
