@@ -22,7 +22,7 @@
         <p class="ai-panel-agent" v-if="ai.activeAgent">{{ ai.activeAgent.name }}</p>
       </div>
 
-      <button class="ai-close-btn" @click="emit('close')" title="Close">✕</button>
+      <button class="ai-close-btn" @click="emit('close')" aria-label="Close AI panel" title="Close">✕</button>
 
       <!-- Tabs -->
       <div class="ai-tabs">
@@ -72,6 +72,7 @@
               class="ai-mic-btn"
               :class="{ listening: isListening }"
               @click="toggleMic"
+              :aria-label="isListening ? 'Stop voice input' : 'Start voice input'"
               :title="isListening ? 'stop recording' : 'speak your thoughts'"
             >
               {{ isListening ? '⏹' : '🎙' }}
@@ -99,6 +100,8 @@
           <button
             v-if="!ai.isAnalyzing"
             class="ai-thinking-toggle"
+            :aria-label="thinkingCollapsed ? 'Show AI reasoning' : 'Hide AI reasoning'"
+            :aria-expanded="!thinkingCollapsed"
             @click="thinkingCollapsed = !thinkingCollapsed"
           >
             {{ thinkingCollapsed ? '▶ show reasoning' : '▼ reasoning' }}
@@ -117,22 +120,14 @@
         <!-- Suggestions -->
         <div v-if="ai.suggestions.length" class="ai-suggestions">
           <template v-for="(action, i) in ai.suggestions" :key="i">
-            <div v-if="!rejectedSet.has(i)"
-                 class="ai-suggestion-item"
-                 :class="{ 'is-applied': appliedSet.has(i) }">
-              <div class="ai-suggestion-kind">{{ kindLabel(action.kind) }}</div>
-              <div class="ai-suggestion-text">{{ describeAction(action) }}</div>
-              <div class="ai-suggestion-actions">
-                <template v-if="appliedSet.has(i)">
-                  <span class="ai-suggestion-done">✓ applied</span>
-                  <button class="ai-suggestion-undo" @click="undoApply(i)" title="Undo this action">↶ undo</button>
-                </template>
-                <template v-else>
-                  <button class="ai-suggestion-reject" @click="rejectAction(i)" title="Dismiss">✕</button>
-                  <button class="ai-suggestion-btn" @click="doApply(action, i)">apply</button>
-                </template>
-              </div>
-            </div>
+            <AISuggestionCard
+              v-if="!rejectedSet.has(i)"
+              :action="action"
+              :applied="appliedSet.has(i)"
+              @apply="doApply(action, i)"
+              @undo="undoApply(i)"
+              @reject="rejectAction(i)"
+            />
           </template>
         </div>
 
@@ -271,46 +266,6 @@ const renderMarkdown = renderSafeMarkdown
 const { appliedSet, rejectedSet, apply: applyAction, undo: undoApply, reject: rejectAction } = useSuggestionState(graph, ai)
 
 function doApply(action: MindMapAction, i: number) { applyAction(action, i) }
-
-/* ---- Action helpers ---- */
-function kindLabel(kind: string): string {
-  const labels: Record<string, string> = {
-    add_node:      '+ new node',
-    link_nodes:    '↗ link nodes',
-    relabel:       '✎ rename',
-    highlight:     '◎ flag',
-    expand_branch: '⊕ expand branch',
-  }
-  return labels[kind] ?? kind
-}
-
-function describeAction(action: MindMapAction): string {
-  switch (action.kind) {
-    case 'add_node': {
-      const parent = graph.nodeById(action.parentId)
-      return `Add "${action.label}" under "${parent?.label ?? action.parentId}"${action.description ? ' — ' + action.description : ''}`
-    }
-    case 'link_nodes': {
-      const from = graph.nodeById(action.fromId)
-      const to   = graph.nodeById(action.toId)
-      return `Link "${from?.label ?? action.fromId}" → "${to?.label ?? action.toId}"`
-    }
-    case 'relabel': {
-      const node = graph.nodeById(action.nodeId)
-      return `Rename "${node?.label ?? action.nodeId}" → "${action.label}"`
-    }
-    case 'highlight':
-      return action.reason
-    case 'expand_branch': {
-      const parent = graph.nodeById(action.parentId)
-      return `Expand "${parent?.label ?? action.parentId}" with ${action.children.length} new child nodes`
-    }
-    default:
-      return JSON.stringify(action)
-  }
-}
-
-
 </script>
 
 <style scoped>
@@ -627,57 +582,6 @@ function describeAction(action: MindMapAction): string {
 .ai-reanalyze-btn:hover {
   border-color: var(--accent);
   color: var(--accent);
-}
-
-/* ---- Suggestion action row ---- */
-.ai-suggestion-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.ai-suggestion-item.is-applied {
-  opacity: 0.55;
-}
-
-.ai-suggestion-done {
-  font-family: 'Kalam', cursive;
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.ai-suggestion-undo {
-  font-family: 'Caveat', cursive;
-  font-size: 14px;
-  background: transparent;
-  border: 1.2px solid var(--muted);
-  color: var(--muted);
-  border-radius: 10px;
-  padding: 1px 8px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.ai-suggestion-undo:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.ai-suggestion-reject {
-  font-size: 11px;
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 2px 4px;
-  opacity: 0.5;
-  line-height: 1;
-}
-
-.ai-suggestion-reject:hover {
-  color: #c0392b;
-  opacity: 1;
 }
 
 /* ---- Mobile: bottom sheet ---- */

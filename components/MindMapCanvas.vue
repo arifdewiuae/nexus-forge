@@ -146,6 +146,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useTouchGestures } from '~/composables/useTouchGestures'
+import { useViewport } from '~/composables/useViewport'
+import { useNodeDrag } from '~/composables/useNodeDrag'
+import { useLabelEditor } from '~/composables/useLabelEditor'
 import { nodeSize, rotFor, sketchRectPath, underlinePath, edgePath } from '~/lib/mindmap/geometry'
 import { exportPng } from '~/lib/mindmap/exportPng'
 import type { MindMapNode } from '~/lib/ai/types'
@@ -155,9 +158,6 @@ const ai = useAIStore()
 
 const canvasEl = ref<HTMLElement | null>(null)
 const editorEl = ref<HTMLInputElement | null>(null)
-const pan      = ref({ x: 0, y: 0 })
-const zoom     = ref(1)
-const draftLabel = ref('')
 const panning  = ref(false)
 const cursorWorld = ref<{ x: number; y: number } | null>(null)
 const vpSize   = ref({ w: 1280, h: 800 })
@@ -165,6 +165,32 @@ const vpSize   = ref({ w: 1280, h: 800 })
 function updateVpSize() {
   vpSize.value = { w: window.innerWidth, h: window.innerHeight }
 }
+
+/* ---- viewport: pan / zoom / fit (composable owns pan+zoom refs) ---- */
+const viewport = useViewport(vpSize)
+const { pan, zoom, transform, zoomPct, worldToScreen, screenToWorld, onWheel, zoomIn, zoomOut } = viewport
+function fitView()       { viewport.fitView(graph.nodes, id => graph.levelOf(id)) }
+function centerOn(id: string) { const n = graph.nodeById(id); if (n) viewport.centerOn(n) }
+
+/* ---- label editor (HTML input floating over SVG) ---- */
+const labelEditor = useLabelEditor(zoom, worldToScreen, editorEl, {
+  getEditingId: () => graph.editingId,
+  setEditingId: (id) => { graph.editingId = id },
+  setLabel:     (id, label) => graph.setLabel(id, label),
+  nodeById:     (id) => graph.nodeById(id) ?? undefined,
+  levelOf:      (id) => graph.levelOf(id),
+})
+const { draftLabel, commitLabelEditor, onEditorKey, editorStyle } = labelEditor
+// Canvas selection follows the edited node; wrap the composable's startEdit.
+function startEdit(node: MindMapNode) { graph.selectedId = node.id; labelEditor.startEdit(node) }
+
+/* ---- node drag ---- */
+const nodeDrag = useNodeDrag(zoom, {
+  beginDrag: () => graph.beginDrag(),
+  moveNode:  (id, x, y) => graph.moveNode(id, x, y),
+  endDrag:   (moved) => graph.endDrag(moved),
+  addNodeAt: (p, x, y, l) => graph.addNodeAt(p, x, y, l),
+})
 
 function onLongPressOnCanvas(clientX: number, clientY: number) {
   const w = screenToWorld(clientX, clientY)
@@ -196,20 +222,9 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', updateVpSize)
   window.removeEventListener('pointermove', onPanMove)
   window.removeEventListener('pointerup', onPanUp)
-  window.removeEventListener('pointermove', onNodeMove)
-  window.removeEventListener('pointerup', onNodeUp)
+  nodeDrag.cleanup()
   touchGestures.detach()
 })
-
-function worldToScreen(wx: number, wy: number) {
-  return { x: wx * zoom.value + pan.value.x, y: wy * zoom.value + pan.value.y }
-}
-function screenToWorld(sx: number, sy: number) {
-  return { x: (sx - pan.value.x) / zoom.value, y: (sy - pan.value.y) / zoom.value }
-}
-const transform = computed(() => `translate(${pan.value.x} ${pan.value.y}) scale(${zoom.value})`)
-
-/* ---- geometry helpers (imported from lib/mindmap/geometry.ts) ---- */
 
 /* ---- new edge set (for draw animation) ---- */
 const newEdgeIds = ref(new Set<string>())
@@ -268,21 +283,6 @@ function decorOf(node: MindMapNode) {
   }
 }
 
-/* ---- wheel: pan or zoom ---- */
-function onWheel(e: WheelEvent) {
-  e.preventDefault()
-  if (e.ctrlKey || e.metaKey) {
-    const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12
-    const next = Math.max(0.3, Math.min(2.6, zoom.value * factor))
-    const wx = (e.clientX - pan.value.x) / zoom.value
-    const wy = (e.clientY - pan.value.y) / zoom.value
-    zoom.value = next
-    pan.value = { x: e.clientX - wx * next, y: e.clientY - wy * next }
-  } else {
-    pan.value = { x: pan.value.x - e.deltaX, y: pan.value.y - e.deltaY }
-  }
-}
-
 /* ---- canvas pan ---- */
 let panStart: { x: number; y: number; px: number; py: number; moved: boolean } | null = null
 
@@ -331,9 +331,6 @@ function onCanvasPointerMove(e: PointerEvent) {
   }
 }
 
-/* ---- node drag ---- */
-let dragInfo: { nodeId: string; startX: number; startY: number; origX: number; origY: number; moved: boolean } | null = null
-
 function onNodePointerDown(e: PointerEvent, node: MindMapNode) {
   e.stopPropagation()
   if (graph.editingId && graph.editingId !== node.id) commitLabelEditor(true)
@@ -367,65 +364,12 @@ function onNodePointerDown(e: PointerEvent, node: MindMapNode) {
   }
 
   graph.selectedId = node.id
-  dragInfo = { nodeId: node.id, startX: e.clientX, startY: e.clientY, origX: node.x, origY: node.y, moved: false }
-  window.addEventListener('pointermove', onNodeMove)
-  window.addEventListener('pointerup', onNodeUp)
-}
-
-function onNodeMove(e: PointerEvent) {
-  if (!dragInfo) return
-  const dx = (e.clientX - dragInfo.startX) / zoom.value
-  const dy = (e.clientY - dragInfo.startY) / zoom.value
-  if (!dragInfo.moved && Math.hypot(dx * zoom.value, dy * zoom.value) > 3) {
-    dragInfo.moved = true; graph.beginDrag()
-  }
-  if (dragInfo.moved) graph.moveNode(dragInfo.nodeId, dragInfo.origX + dx, dragInfo.origY + dy)
-}
-
-function onNodeUp() {
-  if (!dragInfo) return
-  graph.endDrag(dragInfo.moved); dragInfo = null
-  window.removeEventListener('pointermove', onNodeMove)
-  window.removeEventListener('pointerup', onNodeUp)
+  nodeDrag.onNodeDragStart(e, node)
 }
 
 function onNodeDblClick(e: MouseEvent, node: MindMapNode) {
   e.stopPropagation(); startEdit(node)
 }
-
-function startEdit(node: MindMapNode) {
-  graph.selectedId = node.id; graph.editingId = node.id
-  draftLabel.value = node.label
-  nextTick(() => { editorEl.value?.focus(); editorEl.value?.select() })
-}
-
-function commitLabelEditor(save: boolean) {
-  const id = graph.editingId
-  if (!id) return
-  if (save) { const v = draftLabel.value.trim(); if (v) graph.setLabel(id, v) }
-  graph.editingId = null; draftLabel.value = ''
-}
-
-function onEditorKey(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitLabelEditor(true) }
-  else if (e.key === 'Escape') { e.preventDefault(); commitLabelEditor(false) }
-}
-
-const editorStyle = computed(() => {
-  const id = graph.editingId
-  if (!id) return null
-  const n = graph.nodeById(id)
-  if (!n) return null
-  const s = worldToScreen(n.x, n.y)
-  const lvl = graph.levelOf(id)
-  const sz = nodeSize(n, lvl)
-  return {
-    left: s.x + 'px',
-    top: s.y + 'px',
-    minWidth: Math.max(100, sz.w * zoom.value - 16) + 'px',
-    fontSize: Math.max(14, sz.fontSize * zoom.value) + 'px',
-  }
-})
 
 const canvasClass = computed(() => ({
   canvas: true,
@@ -443,51 +387,7 @@ const linkPreview = computed(() => {
   return { x1: a.x, y1: a.y, x2: cursorWorld.value.x, y2: cursorWorld.value.y, dashed: graph.tool === 'connect' }
 })
 
-/* ---- imperative API (exposed to parent) ---- */
-function zoomIn()  { setZoomAtCenter(zoom.value * 1.2) }
-function zoomOut() { setZoomAtCenter(zoom.value / 1.2) }
-
-function setZoomAtCenter(targetZoom: number) {
-  const cx = window.innerWidth / 2, cy = window.innerHeight / 2
-  const next = Math.max(0.3, Math.min(2.6, targetZoom))
-  const wx = (cx - pan.value.x) / zoom.value
-  const wy = (cy - pan.value.y) / zoom.value
-  zoom.value = next
-  pan.value = { x: cx - wx * next, y: cy - wy * next }
-}
-
-function fitView() {
-  const ns = graph.nodes
-  if (!ns.length) return
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
-  for (const n of ns) {
-    const sz = nodeSize(n, graph.levelOf(n.id))
-    minX = Math.min(minX, n.x - sz.w / 2); maxX = Math.max(maxX, n.x + sz.w / 2)
-    minY = Math.min(minY, n.y - sz.h / 2); maxY = Math.max(maxY, n.y + sz.h / 2)
-  }
-  const margin = 60
-  const W = maxX - minX + margin * 2, H = maxY - minY + margin * 2
-  const isNarrow     = window.innerWidth < 800
-  const sideNoteOpen = window.innerWidth >= 1100
-  const topReserve    = isNarrow ? 150 : 170
-  const bottomReserve = isNarrow ? 110 : 70
-  const rightReserve  = sideNoteOpen ? 320 : 24
-  const leftReserve   = 24
-  const availW = Math.max(200, window.innerWidth  - leftReserve - rightReserve)
-  const availH = Math.max(200, window.innerHeight - topReserve  - bottomReserve)
-  zoom.value = Math.max(0.45, Math.min(1.3, Math.min(availW / W, availH / H)))
-  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2
-  pan.value = { x: leftReserve + availW / 2 - cx * zoom.value, y: topReserve + availH / 2 - cy * zoom.value }
-}
-
-function centerOn(id: string) {
-  const n = graph.nodeById(id)
-  if (!n) return
-  pan.value = { x: window.innerWidth / 2 - n.x * zoom.value, y: window.innerHeight / 2 - n.y * zoom.value }
-}
-
-const zoomPct = computed(() => Math.round(zoom.value * 100))
-
+/* ---- imperative API (exposed to parent); pan/zoom/fit live in useViewport ---- */
 async function exportPNG(): Promise<void> {
   const svgEl = canvasEl.value?.querySelector('svg')
   if (!svgEl) return
