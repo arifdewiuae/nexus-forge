@@ -2,14 +2,20 @@
   "name": "nexus-forge",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@11.5.1",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "build": "nuxt build",
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
+    "typecheck": "nuxt typecheck",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@langchain/core": "^1.1.46",
@@ -35,14 +41,13 @@
   },
   "devDependencies": {
     "@nuxt/devtools": "3.2.4",
+    "@playwright/test": "^1.49.0",
     "@types/node": "^22.10.0",
     "@vue/test-utils": "^2.4.6",
     "happy-dom": "^20.9.0",
     "typescript": "^5.7.2",
     "unplugin-auto-import": "^21.0.0",
-    "vitest": "^4.1.6"
-  },
-  "overrides": {
-    "uuid": ">=11.1.1"
+    "vitest": "^4.1.6",
+    "vue-tsc": "^2.1.10"
   }
 }
