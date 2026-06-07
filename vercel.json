@@ -1,5 +1,4 @@
 {
-  "$comment": "Security headers mirror lib/config.ts SECURITY_HEADERS (also set by server/middleware/securityHeaders.ts). Keep the two in sync. microphone=(self) is required for in-app voice input.",
   "headers": [
     {
       "source": "/(.*)",
