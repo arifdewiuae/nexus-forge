@@ -9,6 +9,8 @@ An infinite-canvas mind-map with four distinct AI personalities that analyze you
 
 ## Demo
 
+![Nexus Forge — build a mind-map, pick an AI personality, watch it stream reasoning and restructure the board](docs/demo.gif)
+
 **Live:** [nexus-forge-virid.vercel.app](https://nexus-forge-virid.vercel.app/)
 
 **How it works under the hood:** [nexus-forge-virid.vercel.app/how-it-works.html](https://nexus-forge-virid.vercel.app/how-it-works.html) — a single-page technical deep-dive (layers, request flow, SSE protocol, guardrails). Served statically from [`public/how-it-works.html`](public/how-it-works.html).
@@ -57,15 +59,17 @@ Or enter it directly in the app via **⚙ Settings** — it is stored only in yo
 Four layers, one-way dependencies: **UI → API → AI**, and everything → **Data**.
 
 ```
-UI    components/                  ← SVG canvas, toolbar, side note, AI panel
-        MindMapCanvas.vue          ← pan/zoom/drag/undo (viewport/drag/label-edit composables)
-        AIPanel.vue                ← AI trace + AISuggestionCard.vue (extracted per-suggestion card)
-      pages/index.vue              ← layout, keyboard shortcuts, modal state
+UI    components/                  ← SVG canvas, toolbar, side note, AI panel, modals
+        MindMapCanvas.vue          ← SVG canvas + CanvasNode.vue (per node); viewport/drag/label composables
+        AIPanel.vue                ← shell → AIPanelInputTab / AIPanelIdeasTab (+ AISuggestionCard)
+        MindMapModal.vue           ← shell → Modal{Export,Import,Confirm,Settings,Help}.vue
+      pages/index.vue              ← layout + modal state (shortcuts in useKeyboardShortcuts)
 
-API   server/api/ai/analyze.post.ts ← SSE route: key → rate-limit → moderation → stream
+API   server/api/ai/analyze.post.ts ← SSE route: key → rate-limit → validate → moderation → stream
+      server/utils/sse.ts           ← openSseStream (headers + client-abort + data: framing)
       server/middleware/            ← cors (exact-origin) + securityHeaders (CSP/HSTS)
       server/utils/rateLimit.ts     ← in-memory (dev) / Upstash Redis (prod), two-tier
-      composables/useAIAnalysis.ts  ← SSE stream consumer + AbortController
+      composables/useAIAnalysis.ts  ← consumes lib/ai/sseClient (readSseStream) + AbortController
 
 AI    lib/ai/graph.ts              ← LangGraph workflow (analyzer → suggester)
         nodes/analyzerNode.ts      ← streams "thinking" text
@@ -158,6 +162,8 @@ A full pyramid, all green in CI (`.github/workflows/ci.yml` — typecheck → un
 - **Unit** (`vitest`, happy-dom): pure utilities (serializer, layout, geometry, applier, markdown),
   Zod schemas, the LangGraph orchestration (mocked nodes), rate limiting (fake timers, two tiers),
   and moderation — including the **fail-open** branch.
+- **Stores** (`pinia`): graph (undo/redo, child placement, field caps, cross-links, debounced
+  persistence), AI (streaming, agent set/hydrate, result caching), settings (accent).
 - **Component** (`@vue/test-utils`): `AISuggestionCard`, `MindMapToolbar` (tool select, emits, disabled states).
 - **E2E** (`playwright`): the golden path — analyze with a **mocked** SSE stream → watch the reasoning
   stream → Apply a suggestion → assert the node lands on the canvas. Never hits a real LLM.
@@ -199,5 +205,5 @@ Model: `accounts/fireworks/models/minimax-m2p7` via Fireworks.ai
 ## Future Work
 
 - Version history + AI diff view
-- Voice input for node labels
+- Re-enable voice input (built; hidden behind the `FEATURE_VOICE_INPUT` flag until the mic-permission UX is sorted)
 - Template gallery with AI seeding
