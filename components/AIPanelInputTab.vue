@@ -18,13 +18,14 @@
         <textarea
           class="ai-prompt-textarea"
           v-model="ai.userPrompt"
-          placeholder="type or speak… AI will build the map"
+          :placeholder="FEATURE_VOICE_INPUT ? 'type or speak… AI will build the map' : 'type your idea… AI will build the map'"
           rows="3"
           :disabled="ai.isAnalyzing"
           @keydown.meta.enter.prevent="submitWithPrompt"
           @keydown.ctrl.enter.prevent="submitWithPrompt"
         ></textarea>
         <button
+          v-if="FEATURE_VOICE_INPUT"
           class="ai-mic-btn"
           :class="{ listening: isListening }"
           @click="toggleMic"
@@ -34,7 +35,7 @@
           {{ isListening ? '⏹' : '🎙' }}
         </button>
       </div>
-      <div v-if="micError" class="ai-mic-error">{{ micError }}</div>
+      <div v-if="FEATURE_VOICE_INPUT && micError" class="ai-mic-error">{{ micError }}</div>
     </div>
 
     <div class="ai-input-footer">
@@ -53,6 +54,7 @@
 <script setup lang="ts">
 import { onUnmounted } from 'vue'
 import { useSpeechRecognition } from '~/composables/useSpeechRecognition'
+import { FEATURE_VOICE_INPUT } from '~/lib/config'
 
 const emit = defineEmits<{ analyze: [] }>()
 const ai = useAIStore()

@@ -126,6 +126,13 @@ export const AI_PANEL = {
 /** CORS preflight cache lifetime (server/middleware/cors.ts), seconds. */
 export const CORS_MAX_AGE_SEC = 86400
 
+/**
+ * Feature flags. Voice input is hidden for now — the browser mic permission
+ * is "ask", so it surfaces a prompt/`not-allowed` error in the demo. Flip to
+ * true to restore the mic button (composables/useSpeechRecognition stays wired).
+ */
+export const FEATURE_VOICE_INPUT = false
+
 export const HEADER_FIREWORKS_KEY = 'x-fireworks-key'
 export const STORAGE_KEY_API_KEYS = 'nf:api-keys'
 
