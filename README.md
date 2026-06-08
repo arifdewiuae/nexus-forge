@@ -3,7 +3,7 @@
 An infinite-canvas mind-map with four distinct AI personalities that analyze your thinking, stream their reasoning live, and restructure your map with a click.
 
 > **Portfolio demo** — AI Engineering + Frontend  
-> Stack: Nuxt 3 · LangGraph.js · Fireworks.ai · Custom SVG Canvas · Pinia · Vitest · Playwright
+> Stack: Nuxt 4 · LangGraph.js · Fireworks.ai · Custom SVG Canvas · Pinia · Vitest · Playwright
 
 ---
 
@@ -188,7 +188,7 @@ vercel env add NUXT_PUBLIC_DEMO_KEYS_ENABLED  # "true"
 vercel --prod
 ```
 
-Nuxt 3 is auto-detected by Vercel. No custom build settings needed.  
+Nuxt 4 is auto-detected by Vercel. No custom build settings needed.  
 Security headers (CSP, HSTS, `X-Frame-Options`, `Permissions-Policy`, …) are set in **both**
 `server/middleware/securityHeaders.ts` (so `pnpm preview` and Functions carry them) and `vercel.json`
 (so the CDN sets them on static assets) — single-sourced from `SECURITY_HEADERS` in `lib/config.ts`.

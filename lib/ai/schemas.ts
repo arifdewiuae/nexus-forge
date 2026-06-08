@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { VALIDATION } from '~/lib/config'
+import { ACTION_KIND } from '~/lib/mindmap/constants'
 
 // ---- Node / Graph ----
 
@@ -35,35 +36,35 @@ export const AgentPersonaSchema = z.object({
 
 export const MindMapActionSchema = z.discriminatedUnion('kind', [
   z.object({
-    kind:        z.literal('add_node'),
+    kind:        z.literal(ACTION_KIND.add_node),
     label:       z.string(),
     parentId:    z.string(),
     description: z.string().optional(),
   }),
   z.object({
-    kind:   z.literal('link_nodes'),
+    kind:   z.literal(ACTION_KIND.link_nodes),
     fromId: z.string(),
     toId:   z.string(),
   }),
   z.object({
-    kind:   z.literal('relabel'),
+    kind:   z.literal(ACTION_KIND.relabel),
     nodeId: z.string(),
     label:  z.string(),
   }),
   z.object({
-    kind:    z.literal('highlight'),
+    kind:    z.literal(ACTION_KIND.highlight),
     nodeIds: z.array(z.string()),
     reason:  z.string(),
   }),
   z.object({
-    kind:     z.literal('expand_branch'),
+    kind:     z.literal(ACTION_KIND.expand_branch),
     parentId: z.string(),
     children: z.array(z.object({
       label:       z.string(),
       description: z.string().optional(),
     })),
   }),
-  z.object({ kind: z.literal('tidy_layout') }),
+  z.object({ kind: z.literal(ACTION_KIND.tidy_layout) }),
 ])
 
 export const MindMapActionsSchema = z.array(MindMapActionSchema)

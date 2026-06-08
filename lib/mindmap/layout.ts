@@ -3,7 +3,7 @@ import { LAYOUT } from '~/lib/config'
 
 export interface NodePosition { id: string; x: number; y: number }
 
-const radiusAt = (level: number) => level < LAYOUT.RADII.length ? LAYOUT.RADII[level] : LAYOUT.FALLBACK_RADIUS
+const radiusAt = (level: number) => LAYOUT.RADII[level] ?? LAYOUT.FALLBACK_RADIUS
 
 export function computeRadialLayout(nodes: MindMapNode[]): NodePosition[] {
   const root = nodes.find(n => !n.parent)
