@@ -1,7 +1,11 @@
 import type { BoardStreamEvent } from '~/lib/ai/types'
 import { serializeGraph } from '~/lib/mindmap/serializer'
+import { readSseStream } from '~/lib/ai/sseClient'
 import { HEADER_FIREWORKS_KEY, API_ROUTES } from '~/lib/config'
 import { useApiKeys } from '~/composables/useApiKeys'
+
+/** Server signals "bring your own key" with a 401. */
+const HTTP_UNAUTHORIZED = 401
 
 export function useAIAnalysis(onKeyRequired?: () => void) {
   const graphStore = useGraphStore()
@@ -12,6 +16,29 @@ export function useAIAnalysis(onKeyRequired?: () => void) {
   function abort(): void {
     abortController.value?.abort()
     abortController.value = null
+  }
+
+  /** Apply one streamed event to the store. `error` throws so the caller's catch handles it. */
+  function applyEvent(event: BoardStreamEvent): void {
+    switch (event.type) {
+      case 'thinking':
+        aiStore.appendThinking(event.text)
+        break
+      case 'suggestion':
+        aiStore.addSuggestion(event.action)
+        break
+      case 'done':
+        aiStore.analysisResult = {
+          thinking:    aiStore.streamingThinking,
+          suggestions: aiStore.suggestions,
+          tokensUsed:  event.tokens,
+          costUsd:     event.costUsd,
+          latencyMs:   event.latencyMs,
+        }
+        break
+      case 'error':
+        throw new Error(event.message)
+    }
   }
 
   async function analyze(): Promise<void> {
@@ -35,41 +62,12 @@ export function useAIAnalysis(onKeyRequired?: () => void) {
         signal: controller.signal,
       })
 
-      if (response.status === 401) { onKeyRequired?.(); return }
+      if (response.status === HTTP_UNAUTHORIZED) { onKeyRequired?.(); return }
       if (!response.ok) throw new Error(`Server error ${response.status}`)
-      if (!response.body)  throw new Error('No response body')
+      if (!response.body) throw new Error('No response body')
 
-      const reader = response.body.pipeThrough(new TextDecoderStream()).getReader()
-      let buffer = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += value
-
-        const lines = buffer.split('\n')
-        buffer = lines.pop() ?? ''
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          const raw = line.slice(6).trim()
-          if (!raw || raw === '[DONE]') continue
-
-          const event = JSON.parse(raw) as BoardStreamEvent
-
-          if (event.type === 'thinking')   aiStore.appendThinking(event.text)
-          if (event.type === 'suggestion') aiStore.addSuggestion(event.action)
-          if (event.type === 'done') {
-            aiStore.analysisResult = {
-              thinking:   aiStore.streamingThinking,
-              suggestions: aiStore.suggestions,
-              tokensUsed: event.tokens,
-              costUsd:    event.costUsd,
-              latencyMs:  event.latencyMs,
-            }
-          }
-          if (event.type === 'error') throw new Error(event.message)
-        }
+      for await (const event of readSseStream<BoardStreamEvent>(response.body)) {
+        applyEvent(event)
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return
