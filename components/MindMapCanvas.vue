@@ -60,70 +60,21 @@
         </g>
 
         <!-- Nodes -->
-        <g v-for="node in graph.nodes" :key="node.id"
-           :class="{ 'node-layouting': graph.isLayouting }"
-           :transform="`translate(${node.x} ${node.y}) rotate(${decorOf(node).rot})`">
-
-          <!-- AI highlight ring -->
-          <g v-if="ai.highlightedIds.has(node.id)" filter="url(#wobble)">
-            <path :d="decorOf(node).path0"
-                  fill="none"
-                  stroke="var(--accent)"
-                  stroke-width="3.5"
-                  stroke-dasharray="5 3"
-                  :transform="`scale(${1 + 10 / decorOf(node).w})`"
-                  opacity="0.7">
-              <animate attributeName="stroke-dashoffset" from="0" to="-16" dur="1.2s" repeatCount="indefinite"/>
-            </path>
-          </g>
-
-          <!-- Selection halo -->
-          <g v-if="graph.selectedId === node.id || graph.linkFromId === node.id" filter="url(#wobble)">
-            <path :d="decorOf(node).path0"
-                  fill="none"
-                  stroke="var(--accent)"
-                  stroke-width="3.2"
-                  :stroke-dasharray="graph.linkFromId === node.id ? '6 4' : '0'"
-                  :transform="`scale(${1 + 6 / decorOf(node).w})`"
-                  opacity="0.55"/>
-          </g>
-
-          <!-- Node body -->
-          <g filter="url(#wobble)" class="node-rect"
-             role="button"
-             :aria-label="node.label"
-             tabindex="0"
-             @pointerdown="(e) => onNodePointerDown(e, node)"
-             @dblclick="(e) => onNodeDblClick(e, node)"
-             @keydown.enter="(e) => { graph.selectedId = node.id; startEdit(node) }"
-             @keydown.delete="() => graph.deleteSubtree(node.id)">
-            <path :d="decorOf(node).path0"
-                  fill="var(--paper-card)"
-                  :stroke="graph.selectedId === node.id ? 'var(--accent)' : '#1f2533'"
-                  :stroke-width="decorOf(node).level === 0 ? 2 : 1.6"
-                  stroke-linejoin="round"/>
-            <path :d="decorOf(node).path1"
-                  fill="none"
-                  :stroke="graph.selectedId === node.id ? 'var(--accent)' : '#1f2533'"
-                  :stroke-width="(decorOf(node).level === 0 ? 2 : 1.6) * 0.55"
-                  stroke-linejoin="round" opacity="0.55"/>
-          </g>
-
-          <!-- Label (hidden while editing) -->
-          <text v-if="graph.editingId !== node.id"
-                class="node-text"
-                :class="{ selected: graph.selectedId === node.id }"
-                :font-size="decorOf(node).fontSize"
-                :font-weight="decorOf(node).level === 0 ? 700 : 500">
-            {{ node.label }}
-          </text>
-
-          <!-- Underline scribble for selected -->
-          <g v-if="graph.selectedId === node.id" filter="url(#wobble-soft)">
-            <path :d="underlinePath(decorOf(node).w, decorOf(node).h)"
-                  stroke="var(--accent)" stroke-width="2" fill="none" stroke-linecap="round"/>
-          </g>
-        </g>
+        <CanvasNode
+          v-for="node in graph.nodes"
+          :key="node.id"
+          :node="node"
+          :decor="decorOf(node)"
+          :is-selected="graph.selectedId === node.id"
+          :is-link-source="graph.linkFromId === node.id"
+          :is-highlighted="ai.highlightedIds.has(node.id)"
+          :is-editing="graph.editingId === node.id"
+          :is-layouting="graph.isLayouting"
+          @pointerdown="(e) => onNodePointerDown(e, node)"
+          @dblclick="(e) => onNodeDblClick(e, node)"
+          @edit="startEdit(node)"
+          @delete="graph.deleteSubtree(node.id)"
+        />
       </g>
     </svg>
 
@@ -149,7 +100,7 @@ import { useTouchGestures } from '~/composables/useTouchGestures'
 import { useViewport } from '~/composables/useViewport'
 import { useNodeDrag } from '~/composables/useNodeDrag'
 import { useLabelEditor } from '~/composables/useLabelEditor'
-import { nodeSize, rotFor, sketchRectPath, underlinePath, edgePath } from '~/lib/mindmap/geometry'
+import { nodeSize, rotFor, sketchRectPath, edgePath } from '~/lib/mindmap/geometry'
 import { exportPng } from '~/lib/mindmap/exportPng'
 import { TOOL } from '~/lib/mindmap/constants'
 import type { MindMapNode } from '~/lib/ai/types'
@@ -181,6 +132,7 @@ const labelEditor = useLabelEditor(zoom, worldToScreen, editorEl, {
   nodeById:     (id) => graph.nodeById(id) ?? undefined,
   levelOf:      (id) => graph.levelOf(id),
 })
+
 const { draftLabel, commitLabelEditor, onEditorKey, editorStyle } = labelEditor
 // Canvas selection follows the edited node; wrap the composable's startEdit.
 function startEdit(node: MindMapNode) { graph.selectedId = node.id; labelEditor.startEdit(node) }
@@ -219,6 +171,7 @@ onMounted(() => {
   requestAnimationFrame(() => fitView())
   touchGestures.attach()
 })
+
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateVpSize)
   window.removeEventListener('pointermove', onPanMove)
@@ -399,9 +352,6 @@ defineExpose({ zoomIn, zoomOut, fitView, centerOn, startEdit, zoom, zoomPct, exp
 </script>
 
 <style scoped>
-.node-layouting {
-  transition: transform 0.55s cubic-bezier(0.34, 1.2, 0.64, 1);
-}
 .edge-new {
   stroke-dasharray: 300;
   stroke-dashoffset: 300;
