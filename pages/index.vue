@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { computeRadialLayout } from '~/lib/mindmap/layout'
-import { TOOL } from '~/lib/mindmap/constants'
-import type { Tool } from '~/lib/mindmap/constants'
 import { AI_PANEL } from '~/lib/config'
 
 definePageMeta({ ssr: false })
@@ -47,62 +45,15 @@ onMounted(() => {
 })
 
 /* ---- Keyboard shortcuts ---- */
-function onKey(e: KeyboardEvent) {
-  const t = e.target as HTMLElement | null
-  const editable = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
-
-  if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'Z')) {
-    e.preventDefault()
-    if (e.shiftKey) graph.redo(); else graph.undo()
-    return
-  }
-
-  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-    e.preventDefault(); handleAnalyze(); return
-  }
-
-  if (e.key === 'Escape') {
-    if (modal.value.open) { closeModal(); return }
-    if (showAgentSelector.value) { showAgentSelector.value = false; return }
-    if (graph.editingId) { graph.editingId = null; return }
-    if (graph.linkFromId) { graph.linkFromId = null; return }
-    if (ai.isAIPanelOpen) { handleCloseAIPanel(); return }
-  }
-  if (editable) return
-
-  const toolMap: Record<string, Tool> = { v: TOOL.select, a: TOOL.add, l: TOOL.branch, c: TOOL.connect, e: TOOL.erase }
-  const k = e.key.toLowerCase()
-  if (toolMap[k]) { graph.tool = toolMap[k]; graph.linkFromId = null; return }
-
-  if (e.key === 'Tab') {
-    e.preventDefault()
-    const sel = graph.selectedId ?? graph.rootNode()?.id
-    if (sel) {
-      graph.addChild(sel, 'new idea')
-      nextTick(() => {
-        const node = graph.nodeById(graph.selectedId ?? '')
-        if (node) canvasRef.value?.startEdit(node)
-      })
-    }
-    return
-  }
-  if (e.key === 'Enter') {
-    e.preventDefault()
-    const node = graph.nodeById(graph.selectedId ?? '')
-    if (node) canvasRef.value?.startEdit(node)
-    return
-  }
-  if (e.key === 'Delete' || e.key === 'Backspace') {
-    if (graph.selectedId && graph.selectedId !== graph.rootNode()?.id) {
-      e.preventDefault(); graph.deleteSubtree(graph.selectedId)
-    }
-    return
-  }
-  if (k === 'f') { e.preventDefault(); canvasRef.value?.fitView(); return }
-}
-
-onMounted(() => window.addEventListener('keydown', onKey))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
+useKeyboardShortcuts({
+  analyze:           handleAnalyze,
+  closeAIPanel:      handleCloseAIPanel,
+  closeModal,
+  isModalOpen:       () => modal.value.open,
+  agentSelectorOpen: showAgentSelector,
+  startEdit:         (node) => canvasRef.value?.startEdit(node),
+  fitView:           () => canvasRef.value?.fitView(),
+})
 
 /* ---- AI analysis ---- */
 const { analyze, abort } = useAIAnalysis(() => openModal('settings'))
