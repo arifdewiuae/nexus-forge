@@ -11,6 +11,7 @@ vi.mock('~/composables/useApiKeys', () => ({
 
 // Mutable stub stores shared per-test.
 let graph: ReturnType<typeof makeGraph>
+
 function makeGraph(over: Record<string, unknown> = {}) {
   return reactive({
     tool: 'select', linkFromId: null as string | null,

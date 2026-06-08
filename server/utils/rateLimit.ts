@@ -38,13 +38,16 @@ const memoryStore = new Map<string, InMemoryEntry>()
 function checkInMemory(key: string, limit: number): RateLimitResult {
   const now = Date.now()
   const entry = memoryStore.get(key)
+
   if (!entry || entry.resetAt < now) {
     memoryStore.set(key, { count: 1, resetAt: now + RATE_LIMIT.WINDOW_MS })
     return { allowed: true, remaining: limit - 1, retryAfterSec: WINDOW_SEC }
   }
   entry.count++
+
   const remaining = Math.max(0, limit - entry.count)
   const retryAfterSec = Math.max(1, Math.ceil((entry.resetAt - now) / 1000))
+
   return { allowed: entry.count <= limit, remaining, retryAfterSec }
 }
 

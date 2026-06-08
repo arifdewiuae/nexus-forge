@@ -59,9 +59,11 @@ export const useAIStore = defineStore('ai', () => {
   }
 
   function appendThinking(text: string) { streamingThinking.value += text }
+
   function addSuggestion(action: MindMapAction) { suggestions.value.push(action) }
 
   function setHighlighted(ids: string[]) { highlightedIds.value = new Set(ids) }
+
   function clearHighlights() { highlightedIds.value = new Set() }
 
   function setAgent(id: string) {
