@@ -50,10 +50,10 @@ export function useViewport(vpSize: Ref<{ w: number; h: number }>) {
   function fitView(nodes: MindMapNode[], levelOf: (id: string) => number) {
     if (!nodes.length) return
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
-    for (const n of nodes) {
-      const sz = nodeSize(n, levelOf(n.id))
-      minX = Math.min(minX, n.x - sz.w / 2); maxX = Math.max(maxX, n.x + sz.w / 2)
-      minY = Math.min(minY, n.y - sz.h / 2); maxY = Math.max(maxY, n.y + sz.h / 2)
+    for (const node of nodes) {
+      const size = nodeSize(node, levelOf(node.id))
+      minX = Math.min(minX, node.x - size.w / 2); maxX = Math.max(maxX, node.x + size.w / 2)
+      minY = Math.min(minY, node.y - size.h / 2); maxY = Math.max(maxY, node.y + size.h / 2)
     }
     const margin = VIEWPORT.FIT_MARGIN
     const W = maxX - minX + margin * 2, H = maxY - minY + margin * 2
