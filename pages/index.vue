@@ -96,10 +96,7 @@ function onAccentChange(color: string) {
   <div id="app">
     <ClientOnly>
       <PaperBackground/>
-      <MindMapCanvas
-        ref="canvasRef"
-        @center-on="(id) => canvasRef?.centerOn(id)"
-      />
+      <MindMapCanvas ref="canvasRef" />
       <MindMapHeader/>
       <MindMapToolbar
         ref="toolbarRef"

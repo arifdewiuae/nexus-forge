@@ -51,8 +51,8 @@ describe('applyAction', () => {
     const s = makeStores([{ id: 'root', label: 'Root', parent: null, x: 0, y: 0 }])
     applyAction(s.graph, s.ai, { kind: 'add_node', label: 'New', parentId: 'root' })
     expect(s.graph.nodes).toHaveLength(2)
-    expect(s.graph.nodes[1].label).toBe('New')
-    expect(s.graph.nodes[1].parent).toBe('root')
+    expect(s.graph.nodes[1]!.label).toBe('New')
+    expect(s.graph.nodes[1]!.parent).toBe('root')
   })
 
   it('add_node: does nothing when parent does not exist', () => {
@@ -113,7 +113,7 @@ describe('applyAction', () => {
     applyAction(s.graph, s.ai, { kind: 'tidy_layout' })
     expect(s._layout).toHaveLength(1)
     expect(s._layout[0]).toHaveLength(2)
-    const rootPos = s._layout[0].find(p => p.id === 'r')!
+    const rootPos = s._layout[0]!.find(p => p.id === 'r')!
     expect(rootPos.x).toBe(0)
     expect(rootPos.y).toBe(0)
   })

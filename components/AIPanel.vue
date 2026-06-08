@@ -107,8 +107,8 @@ function startDrag(e: MouseEvent) {
   startDragRaw(e)
 }
 
-watch(() => [props.initialX, props.initialY], ([x, y]) => {
-  pos.value = { x, y }
+watch(() => [props.initialX, props.initialY], () => {
+  pos.value = { x: props.initialX, y: props.initialY }
 })
 
 onMounted(() => {

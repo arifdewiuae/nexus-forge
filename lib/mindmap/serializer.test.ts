@@ -42,8 +42,8 @@ describe('serializeGraph', () => {
   it('rounds x and y to integers', () => {
     const nodes = [{ id: 'r', label: 'Root', parent: null, x: 1.7, y: 2.3 }]
     const g = serializeGraph(nodes, 't', [])
-    expect(g.nodes[0].x).toBe(2)
-    expect(g.nodes[0].y).toBe(2)
+    expect(g.nodes[0]!.x).toBe(2)
+    expect(g.nodes[0]!.y).toBe(2)
   })
 
   it('includes cross links when present', () => {
