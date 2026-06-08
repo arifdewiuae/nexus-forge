@@ -68,6 +68,7 @@ export function useTouchGestures(
       longPressStartX = touch.x
       longPressStartY = touch.y
       cancelLongPress()
+
       longPressTimer = setTimeout(() => {
         onLongPress(longPressStartX, longPressStartY)
         longPressTimer = null

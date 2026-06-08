@@ -41,9 +41,6 @@ export interface AnalysisResult {
   latencyMs: number
 }
 
-/** Agent personality definition */
-export type { AgentPersona } from './schemas'
-
 export const AGENTS: import('./schemas').AgentPersona[] = [
   {
     id: 'axiom9',

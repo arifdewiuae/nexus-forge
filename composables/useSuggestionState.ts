@@ -1,18 +1,21 @@
 import { ref, watch } from 'vue'
-import type { Ref } from 'vue'
 import { applyAction } from '~/lib/mindmap/applier'
 import type { MindMapAction } from '~/lib/ai/types'
-import type { ReturnType as StoreType } from '~/stores/mindMapStore'
+import type { useGraphStore } from '~/stores/useGraphStore'
+import type { useAIStore } from '~/stores/useAIStore'
+
+type GraphStore = ReturnType<typeof useGraphStore>
+type AIStore = ReturnType<typeof useAIStore>
 
 /**
  * Tracks which suggestion cards have been applied or rejected.
  * Resets on each new analysis batch.
  */
-export function useSuggestionState(store: ReturnType<typeof import('~/stores/mindMapStore').useMindMapStore>) {
+export function useSuggestionState(graph: GraphStore, ai: AIStore) {
   const appliedSet  = ref(new Set<number>())
   const rejectedSet = ref(new Set<number>())
 
-  watch(() => store.suggestions.length, (n, prev) => {
+  watch(() => ai.suggestions.length, (n, prev) => {
     if (n > 0 && prev === 0) {
       appliedSet.value  = new Set()
       rejectedSet.value = new Set()
@@ -20,12 +23,12 @@ export function useSuggestionState(store: ReturnType<typeof import('~/stores/min
   })
 
   function apply(action: MindMapAction, i: number) {
-    applyAction(store, action)
+    applyAction(graph, ai, action)
     appliedSet.value = new Set(appliedSet.value).add(i)
   }
 
   function undo(i: number) {
-    store.undo()
+    graph.undo()
     appliedSet.value = new Set([...appliedSet.value].filter(x => x !== i))
   }
 

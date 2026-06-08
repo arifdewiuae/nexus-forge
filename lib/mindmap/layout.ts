@@ -1,9 +1,9 @@
 import type { MindMapNode } from '~/lib/ai/types'
+import { LAYOUT } from '~/lib/config'
 
 export interface NodePosition { id: string; x: number; y: number }
 
-const RADII = [0, 420, 300, 210, 155, 120]
-const radiusAt = (level: number) => level < RADII.length ? RADII[level] : 100
+const radiusAt = (level: number) => level < LAYOUT.RADII.length ? LAYOUT.RADII[level] : LAYOUT.FALLBACK_RADIUS
 
 export function computeRadialLayout(nodes: MindMapNode[]): NodePosition[] {
   const root = nodes.find(n => !n.parent)
@@ -42,7 +42,7 @@ export function computeRadialLayout(nodes: MindMapNode[]): NodePosition[] {
         y: Math.round(parent.y + r * Math.sin(mid)),
       })
       // Recurse with slightly tighter sector so deep nodes don't crowd
-      const margin = sector * 0.08
+      const margin = sector * LAYOUT.SECTOR_MARGIN_FRAC
       place(child.id, level + 1, mid - sector / 2 + margin, mid + sector / 2 - margin)
       cursor += sector
     }

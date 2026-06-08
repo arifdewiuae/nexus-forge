@@ -1,137 +1,94 @@
 <script setup lang="ts">
 import { computeRadialLayout } from '~/lib/mindmap/layout'
-import { useAIStore } from '~/stores/useAIStore'
+import { AI_PANEL } from '~/lib/config'
 
 definePageMeta({ ssr: false })
 
 const canvasRef = ref<{ zoomIn(): void; zoomOut(): void; fitView(): void; centerOn(id: string): void; startEdit(node: { id: string; label: string; x: number; y: number; parent: string | null }): void; exportPNG(): Promise<void>; zoomPct: number } | null>(null)
 const toolbarRef = ref<{ aiBtn: HTMLButtonElement | null } | null>(null)
 
-const G = useMindMapStore()
+const graph = useGraphStore()
+const ai = useAIStore()
+const settings = useSettingsStore()
 
 const modal = ref<{ open: boolean; mode: 'export' | 'import' | 'help' | 'confirm' | 'settings' | null }>({ open: false, mode: null })
 function openModal(mode: 'export' | 'import' | 'help' | 'confirm' | 'settings') { modal.value = { open: true, mode } }
 function closeModal() { modal.value = { open: false, mode: null } }
 
 function handleConfirmedReset() {
-  G.reset()
-  G.clearAnalysis()
+  graph.reset()
+  ai.clearAnalysis()
 }
 
 const showAgentSelector = ref(false)
 
 /* ---- Panel anchor position (near Ask AI button) ---- */
-const panelAnchor = ref({ x: 110, y: 144 })
+const panelAnchor = ref<{ x: number; y: number }>({ x: AI_PANEL.DEFAULT_ANCHOR_X, y: AI_PANEL.DEFAULT_ANCHOR_Y })
 
 function computePanelAnchor() {
   const btn = toolbarRef.value?.aiBtn
   if (!btn) return
   const r = btn.getBoundingClientRect()
+
   panelAnchor.value = {
-    x: Math.max(8, r.left),
-    y: r.bottom + 10,
+    x: Math.max(AI_PANEL.ANCHOR_MIN_X, r.left),
+    y: r.bottom + AI_PANEL.ANCHOR_GAP_Y,
   }
 }
 
 /* ---- Theme init: apply stored accent color on mount ---- */
 onMounted(() => {
-  document.documentElement.style.setProperty('--accent', G.accentColor)
-  useAIStore().hydrateAgentFromStorage()
-  if (!G.agentId) showAgentSelector.value = true
+  document.documentElement.style.setProperty('--accent', settings.accentColor)
+  ai.hydrateAgentFromStorage()
+
+  if (!ai.agentId) showAgentSelector.value = true
 })
 
 /* ---- Keyboard shortcuts ---- */
-function onKey(e: KeyboardEvent) {
-  const t = e.target as HTMLElement | null
-  const editable = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
-
-  if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'Z')) {
-    e.preventDefault()
-    if (e.shiftKey) G.redo(); else G.undo()
-    return
-  }
-
-  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-    e.preventDefault(); handleAnalyze(); return
-  }
-
-  if (e.key === 'Escape') {
-    if (modal.value.open) { closeModal(); return }
-    if (showAgentSelector.value) { showAgentSelector.value = false; return }
-    if (G.editingId) { G.editingId = null; return }
-    if (G.linkFromId) { G.linkFromId = null; return }
-    if (G.isAIPanelOpen) { handleCloseAIPanel(); return }
-  }
-  if (editable) return
-
-  const toolMap: Record<string, 'select' | 'add' | 'branch' | 'connect' | 'erase'> = { v: 'select', a: 'add', l: 'branch', c: 'connect', e: 'erase' }
-  const k = e.key.toLowerCase()
-  if (toolMap[k]) { G.tool = toolMap[k]; G.linkFromId = null; return }
-
-  if (e.key === 'Tab') {
-    e.preventDefault()
-    const sel = G.selectedId ?? G.rootNode()?.id
-    if (sel) {
-      G.addChild(sel, 'new idea')
-      nextTick(() => {
-        const node = G.nodeById(G.selectedId ?? '')
-        if (node) canvasRef.value?.startEdit(node)
-      })
-    }
-    return
-  }
-  if (e.key === 'Enter') {
-    e.preventDefault()
-    const node = G.nodeById(G.selectedId ?? '')
-    if (node) canvasRef.value?.startEdit(node)
-    return
-  }
-  if (e.key === 'Delete' || e.key === 'Backspace') {
-    if (G.selectedId && G.selectedId !== G.rootNode()?.id) {
-      e.preventDefault(); G.deleteSubtree(G.selectedId)
-    }
-    return
-  }
-  if (k === 'f') { e.preventDefault(); canvasRef.value?.fitView(); return }
-}
-
-onMounted(() => window.addEventListener('keydown', onKey))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
+useKeyboardShortcuts({
+  analyze:           handleAnalyze,
+  closeAIPanel:      handleCloseAIPanel,
+  closeModal,
+  isModalOpen:       () => modal.value.open,
+  agentSelectorOpen: showAgentSelector,
+  startEdit:         (node) => canvasRef.value?.startEdit(node),
+  fitView:           () => canvasRef.value?.fitView(),
+})
 
 /* ---- AI analysis ---- */
 const { analyze, abort } = useAIAnalysis(() => openModal('settings'))
 
 async function handleAnalyze() {
-  if (!G.activeAgent) { showAgentSelector.value = true; return }
+  if (!ai.activeAgent) { showAgentSelector.value = true; return }
   computePanelAnchor()
-  G.openAIPanel()
+  ai.openAIPanel()
 }
 
 async function handleForceAnalyze() {
-  G.clearAnalysis()
+  ai.clearAnalysis()
   await analyze()
 }
 
 function handleCloseAIPanel() {
   abort()
-  G.closeAIPanel()
+  ai.closeAIPanel()
 }
 
 /* ---- Tidy layout ---- */
 async function handleTidy() {
-  if (G.isLayouting) return
-  G.isLayouting = true
+  if (graph.isLayouting) return
+  graph.isLayouting = true
   await nextTick()
-  const positions = computeRadialLayout(G.nodes)
-  G.applyLayout(positions)
+  const positions = computeRadialLayout(graph.nodes)
+  graph.applyLayout(positions)
   await nextTick()
   canvasRef.value?.fitView()
-  G.isLayouting = false
+  graph.isLayouting = false
 }
 
 /* ---- Theme ---- */
 function onAccentChange(color: string) {
-  G.setAccent(color)
+  settings.setAccent(color)
 }
 </script>
 
@@ -158,7 +115,7 @@ function onAccentChange(color: string) {
       />
       <MindMapSideNote
         @center-on="(id) => canvasRef?.centerOn(id)"
-        @start-edit="(id) => { const n = G.nodeById(id); if(n) canvasRef?.startEdit(n) }"
+        @start-edit="(id) => { const n = graph.nodeById(id); if(n) canvasRef?.startEdit(n) }"
       />
 
       <!-- Zoom readout -->
@@ -166,7 +123,7 @@ function onAccentChange(color: string) {
         <button class="zoom-btn" @click="canvasRef?.zoomOut()" title="Zoom out">−</button>
         <span class="zoom-pct">{{ canvasRef?.zoomPct ?? 100 }}%</span>
         <button class="zoom-btn" @click="canvasRef?.zoomIn()" title="Zoom in">+</button>
-        <button class="zoom-btn" style="width:auto;padding:0 8px;font-size:18px" @click="canvasRef?.fitView()" title="Fit (F)">fit</button>
+        <button class="zoom-btn zoom-btn--fit" @click="canvasRef?.fitView()" title="Fit (F)">fit</button>
       </div>
 
       <!-- Keyboard hint (hidden on touch devices via CSS) -->
@@ -182,7 +139,7 @@ function onAccentChange(color: string) {
 
       <!-- AI analysis panel -->
       <AIPanel
-        v-if="G.isAIPanelOpen"
+        v-if="ai.isAIPanelOpen"
         :initialX="panelAnchor.x"
         :initialY="panelAnchor.y"
         @close="handleCloseAIPanel"
@@ -203,7 +160,7 @@ function onAccentChange(color: string) {
         <button class="legend-info-btn" @click="openModal('help')" title="How do these work?">?</button>
         <span class="legend-sep">·</span>
         <span class="theme-picker-label">accent</span>
-        <input type="color" class="theme-color-input" :value="G.accentColor" @input="(e) => onAccentChange((e.target as HTMLInputElement).value)" title="Change accent color"/>
+        <input type="color" class="theme-color-input" :value="settings.accentColor" @input="(e) => onAccentChange((e.target as HTMLInputElement).value)" title="Change accent color"/>
       </div>
 
       <!-- Modal -->
@@ -225,6 +182,12 @@ function onAccentChange(color: string) {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
+}
+
+.zoom-btn--fit {
+  width: auto;
+  padding: 0 8px;
+  font-size: 18px;
 }
 
 .theme-picker-row {

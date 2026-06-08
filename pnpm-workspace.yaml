@@ -1,0 +1,16 @@
+# pnpm workspace config.
+#
+# `overrides` lives here (not in package.json) — pnpm ignores npm's top-level
+# `overrides` key, so a transitive pin silently stops applying after migration.
+overrides:
+  uuid: '>=11.1.1'
+
+# Build scripts must be explicitly resolved. pnpm 11's `strictDepBuilds`
+# defaults true, so any dependency left at the auto-written placeholder makes
+# `pnpm install --frozen-lockfile` exit non-zero — which fails the Vercel build.
+# esbuild + vue-demi need their postinstall (native binary / Vue-version shim);
+# @parcel/watcher is dev-only file watching, harmless to build.
+allowBuilds:
+  '@parcel/watcher': true
+  esbuild: true
+  vue-demi: true

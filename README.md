@@ -3,13 +3,15 @@
 An infinite-canvas mind-map with four distinct AI personalities that analyze your thinking, stream their reasoning live, and restructure your map with a click.
 
 > **Portfolio demo** — AI Engineering + Frontend  
-> Stack: Nuxt 3 · LangGraph.js · Fireworks.ai · Custom SVG Canvas · Pinia · Vitest
+> Stack: Nuxt 3 · LangGraph.js · Fireworks.ai · Custom SVG Canvas · Pinia · Vitest · Playwright
 
 ---
 
 ## Demo
 
 **Live:** [nexus-forge-virid.vercel.app](https://nexus-forge-virid.vercel.app/)
+
+**How it works under the hood:** [nexus-forge-virid.vercel.app/how-it-works.html](https://nexus-forge-virid.vercel.app/how-it-works.html) — a single-page technical deep-dive (layers, request flow, SSE protocol, guardrails). Served statically from [`public/how-it-works.html`](public/how-it-works.html).
 
 **The core loop:** Build a messy mind-map → pick a personality → watch it stream dry, clinical reasoning → click Apply → nodes restructure themselves.
 
@@ -18,16 +20,17 @@ An infinite-canvas mind-map with four distinct AI personalities that analyze you
 ## Quickstart
 
 ```bash
-# 1 — clone and install
+# 1 — clone and install (pnpm; Node 24)
 git clone https://github.com/arifdewiuae/nexus-forge.git
-npm install
+corepack enable          # provisions the pnpm version pinned in package.json
+pnpm install
 
 # 2 — configure environment
 cp .env.local.example .env.local
 # edit .env.local — add your FIREWORKS_API_KEY
 
 # 3 — run dev server
-npm run dev
+pnpm dev
 # → http://localhost:3000
 ```
 
@@ -45,34 +48,36 @@ Or enter it directly in the app via **⚙ Settings** — it is stored only in yo
 | `NUXT_PUBLIC_DEMO_KEYS_ENABLED` | No | Exposes the flag to the browser (boolean only — key value stays server-side) |
 | `UPSTASH_REDIS_REST_URL` | No | Upstash Redis for persistent rate limiting in production |
 | `UPSTASH_REDIS_REST_TOKEN` | No | Upstash Redis token |
+| `OPENAI_API_KEY` | No | Enables the optional OpenAI Moderation pass (jailbreak regex always runs) |
 
 ---
 
 ## Architecture
 
+Four layers, one-way dependencies: **UI → API → AI**, and everything → **Data**.
+
 ```
-pages/index.vue
-  └─ MindMapCanvas.vue      ← Custom SVG canvas, pan/zoom/drag/undo
-  └─ MindMapToolbar.vue     ← Tool chips + agent selector
-  └─ MindMapSideNote.vue    ← Selected-node details panel (bottom sheet on mobile)
-  └─ AIPanel.vue            ← AI trace panel + suggestion cards (floating / bottom sheet)
-  └─ MindMapModal.vue       ← Export / Import / Settings / Help
+UI    components/                  ← SVG canvas, toolbar, side note, AI panel
+        MindMapCanvas.vue          ← pan/zoom/drag/undo (viewport/drag/label-edit composables)
+        AIPanel.vue                ← AI trace + AISuggestionCard.vue (extracted per-suggestion card)
+      pages/index.vue              ← layout, keyboard shortcuts, modal state
 
-stores/mindMapStore.ts      ← All reactive graph state (Pinia)
+API   server/api/ai/analyze.post.ts ← SSE route: key → rate-limit → moderation → stream
+      server/middleware/            ← cors (exact-origin) + securityHeaders (CSP/HSTS)
+      server/utils/rateLimit.ts     ← in-memory (dev) / Upstash Redis (prod), two-tier
+      composables/useAIAnalysis.ts  ← SSE stream consumer + AbortController
 
-composables/
-  useAIAnalysis.ts          ← SSE stream consumer, AbortController
-  useApiKeys.ts             ← localStorage key management + demo-key flag
+AI    lib/ai/graph.ts              ← LangGraph workflow (analyzer → suggester)
+        nodes/analyzerNode.ts      ← streams "thinking" text
+        nodes/suggesterNode.ts     ← emits typed MindMapAction[]
+      lib/ai/schemas.ts            ← Zod schemas — single source of truth for types
+      lib/ai/moderation.ts         ← jailbreak regex + optional OpenAI moderation (fail-open)
 
-server/api/ai/analyze.post.ts  ← SSE streaming endpoint (Nuxt server route)
-  └─ lib/ai/graph.ts           ← LangGraph workflow (2 nodes)
-       ├─ analyzerNode.ts       ← Streams "thinking" text
-       └─ suggesterNode.ts      ← Emits typed MindMapAction[]
-
-lib/mindmap/
-  serializer.ts   ← nodes → SerializedGraph (sent to LLM)
-  layout.ts       ← radial layout algorithm
-  applier.ts      ← MindMapAction[] → store mutations
+Data  stores/  useGraphStore       ← nodes, cross-links, tool, undo/redo, persistence
+               useAIStore          ← streaming state, suggestions, agent, highlights
+               useSettingsStore    ← accent colour
+      lib/mindmap/  serializer · layout (radial) · applier (actions → store mutations)
+      lib/config.ts                ← all constants (model, pricing, limits, security headers)
 ```
 
 ### AI Request Flow
@@ -80,20 +85,21 @@ lib/mindmap/
 ```
 User clicks "Analyze"
   → serializeGraph()               [lib/mindmap/serializer.ts]
-  → POST /api/ai/analyze           { graph, agent, userPrompt }
-      ↓ resolve API key (header || server demo key)
-      ↓ rate-limit check (in-memory; Upstash Redis in prod)
-      ↓ validate: 50 KB cap, no null bytes, non-empty graph
+  → POST /api/ai/analyze           { graph, agent, userPrompt }   (key in header)
+      ↓ resolve API key (header || server demo key) → 401 if none
+      ↓ rate-limit (two-tier: demo 20/hr, own key 100/hr) → 429 + Retry-After
+      ↓ validate: 50 KB cap, no null bytes, Zod, non-empty graph
+      ↓ moderation: jailbreak regex + optional OpenAI (fail-open) → SSE error if blocked
       ↓ runMindMapAnalysis() → LangGraph
            analyzerNode → streams "thinking" as SSE
            suggesterNode → emits MindMapAction[] as SSE
-           → { type: 'done', latencyMs, tokens, costUsd }
+           → { type: 'done', latencyMs, tokens, costUsd, truncated? }
   ← SSE reader in useAIAnalysis
       thinking   → trace panel updates live
       suggestion → suggestion card appended
       done       → analysis complete
 User clicks "Apply"
-  → applier.ts mutates mindMapStore (add nodes, relabel, tidy layout, etc.)
+  → applier.ts mutates the graph store (add nodes, relabel, tidy layout, …)
 ```
 
 ### AI Types
@@ -134,12 +140,27 @@ Four distinct personalities, each with a different reasoning style:
 ## Commands
 
 ```bash
-npm run dev          # Start dev server (localhost:3000)
-npm run build        # Production build
-npm run preview      # Preview production build
-npm test             # Vitest — single pass
-npm run test:watch   # Vitest — watch mode
+pnpm dev          # Start dev server (localhost:3000)
+pnpm build        # Production build
+pnpm preview      # Preview production build
+pnpm typecheck    # nuxt typecheck (vue-tsc)
+pnpm test         # Vitest — unit + component, single pass
+pnpm test:watch   # Vitest — watch mode
+pnpm test:e2e     # Playwright golden-path E2E (mocked SSE)
 ```
+
+---
+
+## Testing
+
+A full pyramid, all green in CI (`.github/workflows/ci.yml` — typecheck → unit/component → build → E2E):
+
+- **Unit** (`vitest`, happy-dom): pure utilities (serializer, layout, geometry, applier, markdown),
+  Zod schemas, the LangGraph orchestration (mocked nodes), rate limiting (fake timers, two tiers),
+  and moderation — including the **fail-open** branch.
+- **Component** (`@vue/test-utils`): `AISuggestionCard`, `MindMapToolbar` (tool select, emits, disabled states).
+- **E2E** (`playwright`): the golden path — analyze with a **mocked** SSE stream → watch the reasoning
+  stream → Apply a suggestion → assert the node lands on the canvas. Never hits a real LLM.
 
 ---
 
@@ -162,7 +183,9 @@ vercel --prod
 ```
 
 Nuxt 3 is auto-detected by Vercel. No custom build settings needed.  
-`vercel.json` adds security headers (`X-Frame-Options`, `X-Content-Type-Options`, etc.).
+Security headers (CSP, HSTS, `X-Frame-Options`, `Permissions-Policy`, …) are set in **both**
+`server/middleware/securityHeaders.ts` (so `pnpm preview` and Functions carry them) and `vercel.json`
+(so the CDN sets them on static assets) — single-sourced from `SECURITY_HEADERS` in `lib/config.ts`.
 
 ---
 

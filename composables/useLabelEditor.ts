@@ -29,8 +29,8 @@ export function useLabelEditor(
     const id = callbacks.getEditingId()
     if (!id) return
     if (save) {
-      const v = draftLabel.value.trim()
-      if (v) callbacks.setLabel(id, v)
+      const trimmed = draftLabel.value.trim()
+      if (trimmed) callbacks.setLabel(id, trimmed)
     }
     callbacks.setEditingId(null); draftLabel.value = ''
   }
@@ -43,16 +43,19 @@ export function useLabelEditor(
   const editorStyle = computed(() => {
     const id = callbacks.getEditingId()
     if (!id) return null
-    const n = callbacks.nodeById(id)
-    if (!n) return null
-    const s   = worldToScreen(n.x, n.y)
-    const lvl = callbacks.levelOf(id)
-    const sz  = nodeSize(n, lvl)
+
+    const node = callbacks.nodeById(id)
+    if (!node) return null
+
+    const screen = worldToScreen(node.x, node.y)
+    const level  = callbacks.levelOf(id)
+    const size   = nodeSize(node, level)
+
     return {
-      left:     s.x + 'px',
-      top:      s.y + 'px',
-      minWidth: Math.max(100, sz.w * zoom.value - 16) + 'px',
-      fontSize: Math.max(14, sz.fontSize * zoom.value) + 'px',
+      left:     screen.x + 'px',
+      top:      screen.y + 'px',
+      minWidth: Math.max(100, size.w * zoom.value - 16) + 'px',
+      fontSize: Math.max(14, size.fontSize * zoom.value) + 'px',
     }
   })
 

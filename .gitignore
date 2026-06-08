@@ -17,6 +17,11 @@ Thumbs.db
 # Vercel
 .vercel
 
+# Playwright
+test-results
+playwright-report
+playwright/.cache
+
 # Local history (VSCode extension artifact)
 .history
 

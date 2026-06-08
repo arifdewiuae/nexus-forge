@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light" />
+<title>Nexus Forge — How It Works Under the Hood</title>
+<meta name="description" content="A technical deep-dive into Nexus Forge: a streaming-first AI mind-map built on Nuxt 3, LangGraph and Server-Sent Events. Layers, request flow, SSE protocol and guardrails." />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Nexus Forge — How It Works Under the Hood" />
+<meta property="og:description" content="Layers, request flow, the SSE streaming protocol, the two-node LangGraph brain, six board actions and the guardrails — how Nexus Forge works under the hood." />
+<meta property="og:url" content="https://nexus-forge-virid.vercel.app/how-it-works.html" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Kalam:wght@300;400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:       #faf6ec;
+    --paper-card:  #fdfaf2;
+    --ink:         #1f2533;
+    --ink-soft:    #4a5060;
+    --muted:       #7a6450;
+    --accent:      #c4604a;
+    --accent-text: #a84f3a;
+    --accent-soft: #faeae3;
+    --rule:        rgba(58, 90, 138, 0.10);
+    --line:        rgba(31, 37, 51, 0.18);
+    --display: 'Caveat', cursive;
+    --hand:    'Kalam', cursive;
+    --mono: ui-monospace, 'JetBrains Mono', Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background:
+      repeating-linear-gradient(transparent, transparent 31px, var(--rule) 31px, var(--rule) 32px),
+      var(--paper);
+    color: var(--ink);
+    font-family: var(--hand);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    overflow-wrap: break-word;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  /* red margin line, like ruled paper */
+  body::before {
+    content: ""; position: fixed; top: 0; bottom: 0; left: 78px; width: 2px;
+    background: rgba(196, 96, 74, 0.35); z-index: 0; pointer-events: none;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 28px 120px 96px; position: relative; z-index: 1; }
+  @media (max-width: 720px) { body::before { left: 20px; } .wrap { padding-left: 38px; padding-right: 18px; } }
+
+  /* ── Hero ── */
+  header.hero { padding: 70px 0 30px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--display); font-size: 20px; color: var(--accent-text);
+    border: 1.6px solid var(--ink); border-radius: 20px; padding: 2px 16px;
+    background: var(--paper-card); transform: rotate(-1.5deg);
+  }
+  .badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  header.hero h1 {
+    font-family: var(--display); font-weight: 700;
+    font-size: clamp(52px, 9vw, 92px); margin: 16px 0 6px; line-height: 0.98; letter-spacing: -.01em;
+    transform: rotate(-1.2deg);
+  }
+  header.hero h1 .em { color: var(--accent); }
+  header.hero p.sub { font-size: 21px; color: var(--ink-soft); max-width: 680px; margin: 12px 0 0; }
+
+  .hero-stats { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+  .hero-stat {
+    background: var(--paper-card); border: 1.6px solid var(--ink); border-radius: 12px;
+    padding: 8px 16px; box-shadow: 2px 3px 0 rgba(31,37,51,0.12);
+  }
+  .hero-stat:nth-child(odd)  { transform: rotate(-1deg); }
+  .hero-stat:nth-child(even) { transform: rotate(1deg); }
+  .hero-stat .n { font-family: var(--display); font-size: 26px; font-weight: 700; line-height: 1; }
+  .hero-stat .l { font-size: 12px; color: var(--muted); text-transform: lowercase; }
+
+  nav.toc { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 30px; }
+  nav.toc a {
+    font-family: var(--display); font-size: 19px; color: var(--ink); text-decoration: none;
+    border: 1.5px solid var(--ink); border-radius: 18px; padding: 1px 14px; background: var(--paper-card);
+    transition: .12s;
+  }
+  nav.toc a:nth-child(even) { transform: rotate(-1deg); }
+  nav.toc a:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+
+  /* ── Section ── */
+  section { margin-top: 64px; }
+  .eyebrow { font-family: var(--display); font-size: 22px; color: var(--accent-text); transform: rotate(-1deg); display: inline-block; }
+  h2 { font-family: var(--display); font-weight: 700; font-size: clamp(32px, 5vw, 46px); margin: 2px 0 6px; line-height: 1; }
+  h3 { font-family: var(--display); font-size: 27px; margin: 0 0 6px; font-weight: 700; }
+  p.lead { font-size: 17px; color: var(--ink-soft); max-width: 760px; }
+
+  /* sketchy card */
+  .card {
+    background: var(--paper-card); border: 1.7px solid var(--ink); border-radius: 12px;
+    padding: 20px 22px; box-shadow: 2px 3px 0 rgba(31,37,51,0.12);
+  }
+  .grid { display: grid; gap: 16px; }
+  .g2 { grid-template-columns: repeat(2, 1fr); }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 720px) { .g2, .g3 { grid-template-columns: 1fr; } }
+
+  code, .mono { font-family: var(--mono); font-size: .86em; overflow-wrap: anywhere; }
+  code.inl { background: var(--paper); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; color: var(--accent-text); }
+
+  /* ── Layer stack ── */
+  .layers { display: flex; flex-direction: column; gap: 10px; margin-top: 22px; }
+  .layer {
+    display: grid; grid-template-columns: 130px 1fr; align-items: center; gap: 16px;
+    border: 1.7px solid var(--ink); border-left: 6px solid var(--lc, var(--accent)); border-radius: 12px;
+    padding: 14px 18px; background: var(--paper-card); box-shadow: 2px 3px 0 rgba(31,37,51,0.10);
+  }
+  .layer .lname { font-family: var(--display); font-weight: 700; font-size: 24px; }
+  .layer .lpath { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .layer .ldesc { color: var(--ink-soft); font-size: 14px; }
+  .arrow-rule { text-align: center; color: var(--muted); font-family: var(--display); font-size: 22px; margin: 16px 0; }
+  .arrow-rule b { color: var(--accent); }
+  .arrow-rule .no { color: var(--accent); border-bottom: 2px dotted var(--accent); }
+
+  .callout {
+    border-left: 4px solid var(--accent); background: var(--accent-soft);
+    padding: 12px 18px; border-radius: 0 10px 10px 0; color: var(--ink-soft); font-size: 14px; margin-top: 16px;
+  }
+  .callout b { color: var(--ink); }
+
+  /* ── Flow ── */
+  .flow { display: flex; flex-direction: column; gap: 0; margin-top: 22px; }
+  .fnode { display: flex; align-items: flex-start; gap: 16px; position: relative; padding-bottom: 14px; }
+  .fnode:not(:last-child)::before {
+    content: ""; position: absolute; left: 18px; top: 40px; bottom: -2px; width: 2px;
+    background: repeating-linear-gradient(var(--line), var(--line) 4px, transparent 4px, transparent 8px);
+  }
+  .fbullet {
+    flex: 0 0 38px; height: 38px; border-radius: 50%; display: grid; place-items: center;
+    font-family: var(--display); font-weight: 700; font-size: 20px; color: var(--paper-card);
+    background: var(--accent); z-index: 1; box-shadow: 2px 2px 0 rgba(31,37,51,0.18);
+  }
+  .seg-server .fbullet { background: #5a8a6a; }
+  .seg-llm .fbullet    { background: #8a6aa8; }
+  .seg-back .fbullet   { background: #c08a3a; }
+  .fbody { padding-top: 4px; }
+  .fbody .ftitle { font-family: var(--display); font-weight: 700; font-size: 22px; line-height: 1.1; }
+  .fbody .fmeta { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .fbody .fdesc { color: var(--ink-soft); font-size: 14px; margin-top: 2px; }
+
+  /* ── Table ── */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 4px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1.5px solid var(--line); vertical-align: top; }
+  th { font-family: var(--display); font-size: 18px; color: var(--accent-text); }
+  td .ev { font-family: var(--mono); color: var(--accent-text); font-size: 13px; }
+  td .pay { font-family: var(--mono); color: var(--muted); font-size: 12px; }
+
+  /* ── Pills ── */
+  .pills { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+  .pill {
+    font-family: var(--mono); font-size: 12px; padding: 3px 10px; border-radius: 8px;
+    border: 1.4px solid var(--line); background: var(--paper); color: var(--ink-soft);
+  }
+  .pill b { color: var(--accent-text); }
+
+  /* ── Bars ── */
+  .bars { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+  .bar-row { display: grid; grid-template-columns: 130px 1fr 54px; align-items: center; gap: 12px; }
+  .bar-row .blabel { font-family: var(--display); font-size: 19px; color: var(--ink-soft); }
+  .bar-track { height: 22px; background: var(--paper); border: 1.5px solid var(--ink); border-radius: 7px; overflow: hidden; }
+  .bar-fill { height: 100%; background: var(--accent); }
+  .bar-row .bval { font-family: var(--display); font-size: 22px; text-align: right; }
+
+  /* ── Clean list ── */
+  ul.clean { list-style: none; padding: 0; margin: 8px 0 0; }
+  ul.clean li { padding: 6px 0 6px 24px; position: relative; color: var(--ink-soft); border-bottom: 1px solid var(--line); font-size: 14px; }
+  ul.clean li::before { content: "↳"; position: absolute; left: 2px; color: var(--accent); }
+  ul.clean li b { color: var(--ink); }
+  ul.clean li:last-child { border-bottom: none; }
+
+  .agent-name { font-family: var(--display); font-weight: 700; font-size: 24px; color: var(--accent-text); }
+
+  footer { margin-top: 84px; padding-top: 22px; border-top: 2px dashed var(--line); color: var(--muted); font-size: 14px; }
+  footer b { color: var(--ink); }
+
+  /* keep long monospace paths from forcing horizontal scroll on phones */
+  .layer .lpath, .fbody .fmeta { overflow-wrap: anywhere; }
+
+  /* ── Mobile refinements (phones) ── */
+  @media (max-width: 600px) {
+    header.hero { padding: 44px 0 22px; }
+    header.hero h1 { font-size: clamp(44px, 13vw, 64px); }
+    header.hero p.sub { font-size: 18px; }
+    section { margin-top: 48px; }
+    .card { padding: 16px; }
+    /* stack each layer row: name above its description, no cramped 130px column */
+    .layer { grid-template-columns: 1fr; gap: 6px; }
+    /* tighten the fixed label/value columns so the bars keep room */
+    .bar-row { grid-template-columns: 92px 1fr 38px; gap: 8px; }
+    nav.toc a { font-size: 17px; }
+    .hero-stat .n { font-size: 23px; }
+  }
+
+  /* ── Helpers (extracted from inline styles) ── */
+  .mt-16 { margin-top: 16px; }
+  .mt-20 { margin-top: 20px; }
+  .mt-22 { margin-top: 22px; }
+  .scroll-x { overflow-x: auto; }
+  .pills-col { flex-direction: column; align-items: flex-start; }
+  .card-p { color: var(--ink-soft); font-size: 14px; margin: 0; }
+  .card-p--sm { color: var(--ink-soft); font-size: 13px; margin: 0; }
+  .card-p--note { color: var(--ink-soft); font-size: 13px; }
+  .card-p--lead8 { color: var(--ink-soft); font-size: 14px; margin: 0 0 8px; }
+  .card-p--lead6 { color: var(--ink-soft); font-size: 14px; margin: 0 0 6px; }
+  .note-muted { color: var(--muted); font-size: 13px; margin: 14px 0 0; }
+  .fg-accent { color: var(--accent); }
+  .fg-accent-text { color: var(--accent-text); }
+  .fg-green { color: #5a8a6a; }
+  .fg-purple { color: #8a6aa8; }
+  .fg-orange { color: #c08a3a; }
+  .layer--ai { --lc: #8a6aa8; }
+  .layer--data { --lc: #5a8a6a; }
+  .layer--api { --lc: var(--accent); }
+  .layer--ui { --lc: #c08a3a; }
+  .bar-fill--demo { width: 20%; }
+  .bar-fill--own { width: 100%; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <span class="badge"><span class="dot"></span> technical deep-dive</span>
+    <h1>Nexus <span class="em">Forge</span></h1>
+    <p class="sub">An infinite-canvas mind-map with four AI personalities that read your thinking, stream their reasoning live, and restructure the board with a click. Here's how it works under the hood.</p>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="n">Nuxt 3</div><div class="l">SPA + Nitro</div></div>
+      <div class="hero-stat"><div class="n">LangGraph</div><div class="l">2-node graph</div></div>
+      <div class="hero-stat"><div class="n">SSE</div><div class="l">token streaming</div></div>
+      <div class="hero-stat"><div class="n">6</div><div class="l">board actions</div></div>
+      <div class="hero-stat"><div class="n">4</div><div class="l">personalities</div></div>
+      <div class="hero-stat"><div class="n">SVG</div><div class="l">hand-drawn canvas</div></div>
+    </div>
+    <nav class="toc">
+      <a href="#overview">overview</a>
+      <a href="#layers">layers</a>
+      <a href="#flow">request flow</a>
+      <a href="#protocol">SSE protocol</a>
+      <a href="#brain">nodes &amp; agents</a>
+      <a href="#actions">board actions</a>
+      <a href="#state">client state</a>
+      <a href="#guards">guardrails</a>
+      <a href="#numbers">key numbers</a>
+    </nav>
+  </header>
+
+  <!-- OVERVIEW -->
+  <section id="overview">
+    <div class="eyebrow">01 — the big picture</div>
+    <h2>What is Nexus Forge?</h2>
+    <p class="lead">It's a single-board mind-map you draw on an infinite SVG canvas — pan, zoom, branch, connect, rename. When you hit <b>ask AI</b>, the current graph is serialized and sent to a personality (cold analyst, weary maintenance bot, ancient oracle, chaotic repair droid). It streams a dry, opinionated analysis of your thinking, then proposes concrete edits — add a node, link two ideas, expand a thin branch, tidy the layout — each one a card you <b>Apply</b> with a click.</p>
+    <div class="grid g3 mt-22">
+      <div class="card">
+        <h3>✶ Streaming-first</h3>
+        <p class="card-p">Server-Sent Events push the reasoning token-by-token. You watch the AI think, not a spinner.</p>
+      </div>
+      <div class="card">
+        <h3>✎ Applies itself</h3>
+        <p class="card-p">Suggestions aren't text — they're typed actions that mutate the board and ride the same undo stack as your own edits.</p>
+      </div>
+      <div class="card">
+        <h3>▤ Strictly layered</h3>
+        <p class="card-p">Data, AI, API and UI live in separate folders with a one-way import rule — no cross-layer shortcuts.</p>
+      </div>
+    </div>
+    <div class="card mt-16">
+      <h3>The stack</h3>
+      <div class="pills">
+        <span class="pill"><b>Nuxt 3</b> · Vue 3 · SPA</span>
+        <span class="pill"><b>Pinia</b> · 3 focused stores</span>
+        <span class="pill"><b>LangGraph.js</b></span>
+        <span class="pill"><b>Fireworks.ai</b> · OpenAI-compatible SDK</span>
+        <span class="pill"><b>Zod</b> · schema = source of truth</span>
+        <span class="pill"><b>Nitro</b> · SSE endpoint</span>
+        <span class="pill"><b>Upstash Redis</b> · rate limit</span>
+        <span class="pill"><b>Vitest</b> + <b>Playwright</b></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- LAYERS -->
+  <section id="layers">
+    <div class="eyebrow">02 — architecture</div>
+    <h2>Four layers, one rule</h2>
+    <p class="lead">Code is organized by responsibility, and dependencies flow in one direction. The UI talks to the API; the API runs the AI; the AI and data layers know nothing about HTTP or Vue.</p>
+    <div class="layers">
+      <div class="layer layer--ai">
+        <div><div class="lname">AI</div><div class="lpath">lib/ai/</div></div>
+        <div class="ldesc">The LangGraph workflow (<code class="inl">analyzer → suggester</code>), the four personality prompts, Zod schemas, and the moderation pass. Pure orchestration — emits typed events, knows nothing about Nitro or components.</div>
+      </div>
+      <div class="layer layer--data">
+        <div><div class="lname">Data</div><div class="lpath">stores/ + lib/mindmap/</div></div>
+        <div class="ldesc">Three Pinia stores (graph, AI, settings), the radial-layout algorithm, the graph serializer, and the action applier. The single source of truth for what's on the board.</div>
+      </div>
+      <div class="layer layer--api">
+        <div><div class="lname">API</div><div class="lpath">server/ + composables/</div></div>
+        <div class="ldesc">The HTTP boundary: the Nitro <code class="inl">/api/ai/analyze</code> route (keys → rate-limit → moderation → stream) and the <code class="inl">useAIAnalysis</code> composable that consumes the SSE stream with an AbortController.</div>
+      </div>
+      <div class="layer layer--ui">
+        <div><div class="lname">UI</div><div class="lpath">components/ + pages/</div></div>
+        <div class="ldesc">The SVG canvas, toolbar, side note, AI panel and suggestion cards. Thin Vue wiring over the stores; viewport / drag / label-edit logic lives in focused composables.</div>
+      </div>
+    </div>
+    <div class="arrow-rule">UI <b>→</b> API <b>→</b> AI &nbsp;·&nbsp; everything <b>→</b> Data &nbsp;·&nbsp; <span class="no">never the reverse</span></div>
+    <div class="callout"><b>Why it matters:</b> the AI layer is testable without a browser, the serializer/applier are pure functions, and a UI rewrite can't reach into model code. All constants (model id, pricing, rate limits, security headers) live in <code class="inl">lib/config.ts</code> — no magic numbers in logic.</div>
+  </section>
+
+  <!-- FLOW -->
+  <section id="flow">
+    <div class="eyebrow">03 — end to end</div>
+    <h2>The journey of one analysis</h2>
+    <p class="lead">From click to applied edit. Colours mark the segment: <b class="fg-accent">client</b>, <b class="fg-green">server pipeline</b>, <b class="fg-purple">model loop</b>, <b class="fg-orange">stream back</b>.</p>
+    <div class="card flow">
+      <div class="fnode">
+        <div class="fbullet">1</div>
+        <div class="fbody">
+          <div class="ftitle">Pick a personality &amp; hit “analyze”</div>
+          <div class="fmeta">AIPanel → useAIAnalysis.analyze()</div>
+          <div class="fdesc">The active agent gates the run; the panel flips to the <b>ideas</b> tab and clears the previous result.</div>
+        </div>
+      </div>
+      <div class="fnode">
+        <div class="fbullet">2</div>
+        <div class="fbody">
+          <div class="ftitle">Serialize the board &amp; POST</div>
+          <div class="fmeta">lib/mindmap/serializer.ts → /api/ai/analyze</div>
+          <div class="fdesc">Nodes become a compact <code class="inl">SerializedGraph</code>. The Fireworks key rides in a request <b>header</b> (never the body); an <code class="inl">AbortSignal</code> backs the stop button.</div>
+        </div>
+      </div>
+      <div class="fnode seg-server">
+        <div class="fbullet">3</div>
+        <div class="fbody">
+          <div class="ftitle">Server policy pipeline</div>
+          <div class="fmeta">server/api/ai/analyze.post.ts</div>
+          <div class="fdesc">A linear gauntlet: <b>resolve key → rate-limit → validate (Zod, 50 KB cap, null-byte check) → moderation</b>. Any failure short-circuits before a token is generated.</div>
+        </div>
+      </div>
+      <div class="fnode seg-llm">
+        <div class="fbullet">4</div>
+        <div class="fbody">
+          <div class="ftitle">Two-node LangGraph runs</div>
+          <div class="fmeta">lib/ai/graph.ts · analyzer → suggester</div>
+          <div class="fdesc">The <b>analyzer</b> streams the reasoning text; the <b>suggester</b> reads that analysis and emits a typed list of board actions.</div>
+        </div>
+      </div>
+      <div class="fnode seg-back">
+        <div class="fbullet">5</div>
+        <div class="fbody">
+          <div class="ftitle">Events stream back as SSE</div>
+          <div class="fmeta">data: &lt;json&gt;\n\n</div>
+          <div class="fdesc">Each event is one frame: <code class="inl">thinking</code> text, then a <code class="inl">suggestion</code> per action, closed by a <code class="inl">done</code> frame carrying latency, tokens, cost and a truncation flag.</div>
+        </div>
+      </div>
+      <div class="fnode seg-back">
+        <div class="fbullet">6</div>
+        <div class="fbody">
+          <div class="ftitle">Client parses &amp; the panel renders live</div>
+          <div class="fmeta">useAIAnalysis → useAIStore → AIPanel</div>
+          <div class="fdesc">Reasoning streams into the trace; each action becomes a suggestion card. <b>Apply</b> runs the action through <code class="inl">applier.ts</code>, mutating the graph store — on the same undo stack as manual edits.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROTOCOL -->
+  <section id="protocol">
+    <div class="eyebrow">04 — the wire format</div>
+    <h2>The SSE streaming protocol</h2>
+    <p class="lead">Every server→client message is one SSE frame: <code class="inl">data: &lt;JSON&gt;\n\n</code>. The JSON is one variant of the <code class="inl">BoardStreamEvent</code> discriminated union — defined once as a Zod schema, so a <code class="inl">switch</code> on <code class="inl">event.type</code> stays exhaustive at compile time.</p>
+    <div class="card mt-20 scroll-x">
+      <table>
+        <thead><tr><th>Event</th><th>Fires when…</th><th>Key payload</th></tr></thead>
+        <tbody>
+          <tr><td><span class="ev">thinking</span></td><td>The analyzer streams a chunk of reasoning</td><td><span class="pay">text</span></td></tr>
+          <tr><td><span class="ev">suggestion</span></td><td>The suggester emits one board action</td><td><span class="pay">action: MindMapAction</span></td></tr>
+          <tr><td><span class="ev">done</span></td><td>The run completes</td><td><span class="pay">latencyMs, tokens, costUsd, truncated?</span></td></tr>
+          <tr><td><span class="ev">error</span></td><td>Validation, moderation or model failure</td><td><span class="pay">message</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="grid g2 mt-16">
+      <div class="card">
+        <h3>Server: emit → write</h3>
+        <p class="card-p">The graph is handed an <code class="inl">emit()</code> callback; each node calls it, and the route writes <code class="inl">data: …\n\n</code> straight to the Node response. A client disconnect aborts the in-flight model call.</p>
+      </div>
+      <div class="card">
+        <h3>Client: stream → store</h3>
+        <p class="card-p"><code class="inl">useAIAnalysis</code> reads the body through a <code class="inl">TextDecoderStream</code>, buffers partial frames, splits on <code class="inl">\n\n</code>, and routes each parsed event into the AI store.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- BRAIN -->
+  <section id="brain">
+    <div class="eyebrow">05 — the brain</div>
+    <h2>Two nodes, four personalities</h2>
+    <p class="lead">A tiny LangGraph workflow: <code class="inl">analyzer → suggester → END</code>. The analyzer writes prose for a human; the suggester turns that prose into machine-applicable actions. Both call Fireworks through the OpenAI-compatible SDK.</p>
+    <div class="grid g2 mt-22">
+      <div class="card">
+        <h3>🧠 analyzer</h3>
+        <p class="card-p--lead8">Streams an opinionated read of the board — what it's about, structural gaps, hidden connections, next moves. Identifies itself as <b>Nexus Forge</b>, never the model. Flags <code class="inl">finish_reason: 'length'</code> as truncation.</p>
+      </div>
+      <div class="card">
+        <h3>✦ suggester</h3>
+        <p class="card-p">Reads the analysis and returns a typed <code class="inl">MindMapAction[]</code>, validated against the Zod action schema before it ever reaches the client.</p>
+      </div>
+    </div>
+    <div class="card mt-16">
+      <h3>The four personalities</h3>
+      <p class="card-p--lead6">Each wraps the same base prompt with a distinct voice — the analysis is identical in substance, wildly different in tone.</p>
+      <ul class="clean">
+        <li><span class="agent-name">AXIOM-9</span> — cold analyst. <i>“Your diagram is a cry for help.”</i></li>
+        <li><span class="agent-name">VERN</span> — blue-collar bot. <i>“I've seen worse. Not much worse.”</i></li>
+        <li><span class="agent-name">ORACLE-3</span> — ancient AI. <i>“Watched empires fall. This too shall pass.”</i></li>
+        <li><span class="agent-name">PATCH</span> — chaotic repair droid. <i>“FASCINATING. Also a disaster.”</i></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ACTIONS -->
+  <section id="actions">
+    <div class="eyebrow">06 — what the AI can do</div>
+    <h2>Six board actions</h2>
+    <p class="lead">The suggester can only speak in this vocabulary — a discriminated union so every action is fully typed and the applier's <code class="inl">switch</code> is exhaustive. <code class="inl">highlight</code> touches AI state; the rest mutate the graph store (and ride its undo stack).</p>
+    <div class="grid g3 mt-22">
+      <div class="card"><h3>+ add_node</h3><p class="card-p--sm">Adds a child under a parent, auto-placed to avoid siblings.</p></div>
+      <div class="card"><h3>↗ link_nodes</h3><p class="card-p--sm">Draws a cross-link — a non-tree association between two ideas.</p></div>
+      <div class="card"><h3>✎ relabel</h3><p class="card-p--sm">Renames a vague node to something sharper.</p></div>
+      <div class="card"><h3>◎ highlight</h3><p class="card-p--sm">Pulses a ring around nodes for a few seconds to draw the eye.</p></div>
+      <div class="card"><h3>⊕ expand_branch</h3><p class="card-p--sm">Adds several children to a thin branch in one move.</p></div>
+      <div class="card"><h3>⊹ tidy_layout</h3><p class="card-p--sm">Re-runs the radial layout to untangle the whole board.</p></div>
+    </div>
+  </section>
+
+  <!-- STATE -->
+  <section id="state">
+    <div class="eyebrow">07 — client state</div>
+    <h2>Three focused stores</h2>
+    <p class="lead">State is split by concern across three Pinia stores. Components import only what they need; there's no god-store and no facade in between.</p>
+    <div class="grid g3 mt-22">
+      <div class="card">
+        <h3>useGraphStore</h3>
+        <p class="card-p--note">Nodes, cross-links, selection, the current tool, undo/redo history, and debounced <code class="inl">localStorage</code> persistence.</p>
+      </div>
+      <div class="card">
+        <h3>useAIStore</h3>
+        <p class="card-p--note">Streaming reasoning, suggestions, highlights, the active agent, and the cached last result.</p>
+      </div>
+      <div class="card">
+        <h3>useSettingsStore</h3>
+        <p class="card-p--note">The single user-selectable accent colour, persisted and pushed to a CSS variable.</p>
+      </div>
+    </div>
+    <div class="callout"><b>One careful detail:</b> every ref is wrapped in <code class="inl">skipHydrate()</code> so the SPA's client-only state never trips Nuxt's SSR hydration. Viewport, node-drag and label-edit logic live in their own composables, keeping the 400-line SVG canvas about rendering, not bookkeeping.</div>
+  </section>
+
+  <!-- GUARDS -->
+  <section id="guards">
+    <div class="eyebrow">08 — safety &amp; limits</div>
+    <h2>Guardrails before generation</h2>
+    <p class="lead">Several independent checks run before the model sees a request — and the optional ones degrade gracefully when their backing service is missing.</p>
+    <div class="grid g2 mt-22">
+      <div class="card">
+        <h3>🛡 Moderation — two passes</h3>
+        <p class="card-p"><b>1.</b> A fast, always-on jailbreak regex scan (zero cost). <b>2.</b> If an OpenAI key is set, the text goes to the Moderation API. It <b>fails open</b> — an outage never blocks a legit user. Blocks come back as an SSE <code class="inl">error</code> frame, not a 4xx.</p>
+      </div>
+      <div class="card">
+        <h3>⏳ Rate limiting — two tiers</h3>
+        <p class="card-p"><b>Prod:</b> Upstash Redis, keyed by API-key suffix or IP. <b>Dev:</b> an in-memory bucket. The shared demo key gets a tighter budget than your own key; a 429 carries <code class="inl">Retry-After</code>.</p>
+      </div>
+    </div>
+    <div class="card mt-16">
+      <h3>Rate-limit budgets (per key / hour)</h3>
+      <div class="bars">
+        <div class="bar-row"><div class="blabel">demo key</div><div class="bar-track"><div class="bar-fill bar-fill--demo"></div></div><div class="bval">20</div></div>
+        <div class="bar-row"><div class="blabel">your own key</div><div class="bar-track"><div class="bar-fill bar-fill--own"></div></div><div class="bval">100</div></div>
+      </div>
+      <p class="note-muted">Plus a strict <b>CSP</b>, exact-origin CORS, and a key that's server-only — it travels in a header and is never logged. <code class="inl">microphone=(self)</code> keeps voice input working under the Permissions-Policy.</p>
+    </div>
+  </section>
+
+  <!-- NUMBERS -->
+  <section id="numbers">
+    <div class="eyebrow">09 — the tuning knobs</div>
+    <h2>Key numbers</h2>
+    <p class="lead">A core rule of the codebase: no magic numbers. Every constant below lives in <code class="inl">lib/config.ts</code>.</p>
+    <div class="grid g3 mt-22">
+      <div class="card"><h3 class="fg-accent-text">Model</h3><div class="pills pills-col">
+        <span class="pill">model <b>minimax-m2p7</b></span>
+        <span class="pill">temperature <b>0.3</b></span>
+        <span class="pill">max tokens <b>2048</b></span>
+      </div></div>
+      <div class="card"><h3 class="fg-green">Validation</h3><div class="pills pills-col">
+        <span class="pill">payload cap <b>50 KB</b></span>
+        <span class="pill">prompt cap <b>2000 chars</b></span>
+        <span class="pill">null-byte <b>rejected</b></span>
+      </div></div>
+      <div class="card"><h3 class="fg-orange">Limits</h3><div class="pills pills-col">
+        <span class="pill">demo <b>20 / hr</b></span>
+        <span class="pill">own key <b>100 / hr</b></span>
+        <span class="pill">window <b>3600 s</b></span>
+      </div></div>
+      <div class="card"><h3 class="fg-purple">Pricing /1M tok</h3><div class="pills pills-col">
+        <span class="pill">in <b>$0.60</b> · out <b>$0.60</b></span>
+        <span class="pill">cost shown per run</span>
+      </div></div>
+      <div class="card"><h3 class="fg-accent-text">Graph</h3><div class="pills pills-col">
+        <span class="pill">nodes <b>analyzer → suggester</b></span>
+        <span class="pill">actions <b>6 kinds</b></span>
+        <span class="pill">events <b>4 types</b></span>
+      </div></div>
+      <div class="card"><h3 class="fg-green">Tested with</h3><div class="pills pills-col">
+        <span class="pill">vitest <b>unit + component</b></span>
+        <span class="pill">playwright <b>golden path</b></span>
+        <span class="pill">CI <b>typecheck → e2e</b></span>
+      </div></div>
+    </div>
+  </section>
+
+  <footer>
+    <b>Nexus Forge</b> — AI mind-map builder · built with Nuxt 3, LangGraph &amp; Server-Sent Events.<br/>
+    Generated technical overview · data → AI → API → UI, one way only.
+  </footer>
+
+</div>
+</body>
+</html>

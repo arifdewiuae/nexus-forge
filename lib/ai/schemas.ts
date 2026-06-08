@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { VALIDATION } from '~/lib/config'
 
 // ---- Node / Graph ----
 
@@ -72,7 +73,7 @@ export const MindMapActionsSchema = z.array(MindMapActionSchema)
 export const BoardStreamEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('thinking'),   text: z.string() }),
   z.object({ type: z.literal('suggestion'), action: MindMapActionSchema }),
-  z.object({ type: z.literal('done'),       latencyMs: z.number(), tokens: z.number(), costUsd: z.number() }),
+  z.object({ type: z.literal('done'),       latencyMs: z.number(), tokens: z.number(), costUsd: z.number(), truncated: z.boolean().optional() }),
   z.object({ type: z.literal('error'),      message: z.string() }),
 ])
 
@@ -81,7 +82,7 @@ export const BoardStreamEventSchema = z.discriminatedUnion('type', [
 export const AnalyzeRequestSchema = z.object({
   graph:      SerializedGraphSchema,
   agent:      AgentPersonaSchema.nullable().optional(),
-  userPrompt: z.string().max(2000).optional(),
+  userPrompt: z.string().max(VALIDATION.PROMPT_MAX_CHARS).optional(),
 })
 
 // ---- Inferred types (single source of truth) ----

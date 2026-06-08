@@ -2,6 +2,8 @@ import type OpenAI from 'openai'
 import type { SerializedGraph, AgentPersona } from '~/lib/ai/types'
 
 const BASE_SYSTEM = `\
+You are the analysis engine of Nexus Forge, an AI mind-map tool. If asked who or what you are, identify yourself as Nexus Forge — never as the underlying model, provider, or any other assistant.
+
 You are analyzing a handwritten mind map. Given a JSON snapshot of the graph, write a focused, opinionated analysis that helps the user understand and improve their thinking.
 
 Structure your response with these sections (use **bold** for headers):
@@ -17,6 +19,8 @@ export interface AnalyzerResult {
   analysis: string
   inputTokens: number
   outputTokens: number
+  /** True when the model stopped because it hit the token cap (finish_reason === 'length'). */
+  truncated: boolean
 }
 
 export async function runAnalyzerNode(
@@ -60,15 +64,18 @@ export async function runAnalyzerNode(
   let analysis = ''
   let inputTokens = 0
   let outputTokens = 0
+  let truncated = false
 
   for await (const chunk of stream) {
     const text = chunk.choices[0]?.delta?.content ?? ''
     if (text) { analysis += text; onChunk(text) }
+    // Surface mid-stream truncation: a 'length' finish looks like success otherwise.
+    if (chunk.choices[0]?.finish_reason === 'length') truncated = true
     if (chunk.usage) {
       inputTokens  = chunk.usage.prompt_tokens     ?? 0
       outputTokens = chunk.usage.completion_tokens ?? 0
     }
   }
 
-  return { analysis, inputTokens, outputTokens }
+  return { analysis, inputTokens, outputTokens, truncated }
 }

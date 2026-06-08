@@ -1,7 +1,5 @@
 import type { MindMapNode } from '~/lib/ai/types'
-
-// Approximate character width ratio for Kalam / Caveat handwriting fonts
-const CHAR_W = 0.52
+import { GEOMETRY } from '~/lib/config'
 
 export interface NodeSize {
   w: number
@@ -10,22 +8,19 @@ export interface NodeSize {
   radius: number
 }
 
+type SizeTier = (typeof GEOMETRY)['ROOT' | 'BRANCH' | 'LEAF']
+
+function sizeFor(len: number, t: SizeTier): NodeSize {
+  const w = Math.max(t.wMin, Math.min(t.wMax, Math.round(len * t.wPerChar + t.wPad)))
+  const fontSize = Math.min(t.fontMax, Math.max(t.fontMin, Math.floor((w - t.fontPad) / (len * GEOMETRY.CHAR_W))))
+  return { w, h: t.h, fontSize, radius: t.radius }
+}
+
 export function nodeSize(node: MindMapNode, level: number): NodeSize {
-  const label = node.label || ''
-  const len = Math.max(1, label.length)
-  if (level === 0) {
-    const w = Math.max(240, Math.min(400, Math.round(len * 14 + 60)))
-    const fontSize = Math.min(42, Math.max(18, Math.floor((w - 40) / (len * CHAR_W))))
-    return { w, h: 96, fontSize, radius: 30 }
-  }
-  if (level === 1) {
-    const w = Math.max(160, Math.min(320, Math.round(len * 18 + 40)))
-    const fontSize = Math.min(30, Math.max(14, Math.floor((w - 34) / (len * CHAR_W))))
-    return { w, h: 60, fontSize, radius: 22 }
-  }
-  const w = Math.max(130, Math.min(280, Math.round(len * 14 + 34)))
-  const fontSize = Math.min(22, Math.max(12, Math.floor((w - 28) / (len * CHAR_W))))
-  return { w, h: 48, fontSize, radius: 18 }
+  const len = Math.max(1, (node.label || '').length)
+  if (level === 0) return sizeFor(len, GEOMETRY.ROOT)
+  if (level === 1) return sizeFor(len, GEOMETRY.BRANCH)
+  return sizeFor(len, GEOMETRY.LEAF)
 }
 
 export function rotFor(id: string): number {
