@@ -2,8 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light" />
 <title>Nexus Forge — How It Works Under the Hood</title>
+<meta name="description" content="A technical deep-dive into Nexus Forge: a streaming-first AI mind-map built on Nuxt 3, LangGraph and Server-Sent Events. Layers, request flow, SSE protocol and guardrails." />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Nexus Forge — How It Works Under the Hood" />
+<meta property="og:description" content="Layers, request flow, the SSE streaming protocol, the two-node LangGraph brain, six board actions and the guardrails — how Nexus Forge works under the hood." />
+<meta property="og:url" content="https://nexus-forge-virid.vercel.app/how-it-works.html" />
+<meta name="twitter:card" content="summary_large_image" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Kalam:wght@300;400;700&display=swap" rel="stylesheet">
@@ -34,6 +41,9 @@
     font-family: var(--hand);
     line-height: 1.65;
     -webkit-font-smoothing: antialiased;
+    overflow-wrap: break-word;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
   /* red margin line, like ruled paper */
   body::before {
@@ -96,7 +106,7 @@
   .g3 { grid-template-columns: repeat(3, 1fr); }
   @media (max-width: 720px) { .g2, .g3 { grid-template-columns: 1fr; } }
 
-  code, .mono { font-family: var(--mono); font-size: .86em; }
+  code, .mono { font-family: var(--mono); font-size: .86em; overflow-wrap: anywhere; }
   code.inl { background: var(--paper); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; color: var(--accent-text); }
 
   /* ── Layer stack ── */
@@ -173,6 +183,24 @@
 
   footer { margin-top: 84px; padding-top: 22px; border-top: 2px dashed var(--line); color: var(--muted); font-size: 14px; }
   footer b { color: var(--ink); }
+
+  /* keep long monospace paths from forcing horizontal scroll on phones */
+  .layer .lpath, .fbody .fmeta { overflow-wrap: anywhere; }
+
+  /* ── Mobile refinements (phones) ── */
+  @media (max-width: 600px) {
+    header.hero { padding: 44px 0 22px; }
+    header.hero h1 { font-size: clamp(44px, 13vw, 64px); }
+    header.hero p.sub { font-size: 18px; }
+    section { margin-top: 48px; }
+    .card { padding: 16px; }
+    /* stack each layer row: name above its description, no cramped 130px column */
+    .layer { grid-template-columns: 1fr; gap: 6px; }
+    /* tighten the fixed label/value columns so the bars keep room */
+    .bar-row { grid-template-columns: 92px 1fr 38px; gap: 8px; }
+    nav.toc a { font-size: 17px; }
+    .hero-stat .n { font-size: 23px; }
+  }
 </style>
 </head>
 <body>

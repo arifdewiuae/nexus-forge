@@ -122,7 +122,7 @@ server/
 
 e2e/golden-path.e2e.ts            ← Playwright: mocked SSE → apply suggestion adds a node
 .github/workflows/ci.yml          ← typecheck → test → build → e2e (SHA-pinned actions)
-docs/how-it-works.html            ← single-page technical deep-dive (project design)
+public/how-it-works.html          ← self-contained technical deep-dive; served at /how-it-works.html
 ```
 
 ## Cleanup history

@@ -11,7 +11,7 @@ An infinite-canvas mind-map with four distinct AI personalities that analyze you
 
 **Live:** [nexus-forge-virid.vercel.app](https://nexus-forge-virid.vercel.app/)
 
-**How it works under the hood:** [`docs/how-it-works.html`](docs/how-it-works.html) — a single-page technical deep-dive (layers, request flow, SSE protocol, guardrails).
+**How it works under the hood:** [nexus-forge-virid.vercel.app/how-it-works.html](https://nexus-forge-virid.vercel.app/how-it-works.html) — a single-page technical deep-dive (layers, request flow, SSE protocol, guardrails). Served statically from [`public/how-it-works.html`](public/how-it-works.html).
 
 **The core loop:** Build a messy mind-map → pick a personality → watch it stream dry, clinical reasoning → click Apply → nodes restructure themselves.
 
