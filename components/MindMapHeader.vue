@@ -1,6 +1,6 @@
 <template>
   <div class="header">
-    <div style="display:flex;align-items:baseline;gap:0;flex-wrap:wrap">
+    <div class="header-title-row">
       <span ref="titleEl"
             class="header-title"
             contenteditable="plaintext-only"
@@ -61,3 +61,12 @@ onMounted(() => {
   if (titleEl.value) titleEl.value.textContent = graph.title
 })
 </script>
+
+<style scoped>
+.header-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0;
+  flex-wrap: wrap;
+}
+</style>

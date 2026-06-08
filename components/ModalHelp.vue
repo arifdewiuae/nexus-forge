@@ -1,7 +1,7 @@
 <template>
   <div>
     <h2>quick tour</h2>
-    <p style="font-size:16px;line-height:1.65;color:var(--ink)">
+    <p class="help-body">
       <strong>click</strong> a thought to select it · <strong>drag</strong> to move ·
       <strong>double-click</strong> to rename.<br/>
       <kbd>tab</kbd> add a child · <kbd>del</kbd> delete · <kbd>enter</kbd> rename.<br/><br/>
@@ -26,3 +26,11 @@
 <script setup lang="ts">
 const emit = defineEmits<{ close: [] }>()
 </script>
+
+<style scoped>
+.help-body {
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--ink);
+}
+</style>

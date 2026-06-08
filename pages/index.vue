@@ -123,7 +123,7 @@ function onAccentChange(color: string) {
         <button class="zoom-btn" @click="canvasRef?.zoomOut()" title="Zoom out">−</button>
         <span class="zoom-pct">{{ canvasRef?.zoomPct ?? 100 }}%</span>
         <button class="zoom-btn" @click="canvasRef?.zoomIn()" title="Zoom in">+</button>
-        <button class="zoom-btn" style="width:auto;padding:0 8px;font-size:18px" @click="canvasRef?.fitView()" title="Fit (F)">fit</button>
+        <button class="zoom-btn zoom-btn--fit" @click="canvasRef?.fitView()" title="Fit (F)">fit</button>
       </div>
 
       <!-- Keyboard hint (hidden on touch devices via CSS) -->
@@ -182,6 +182,12 @@ function onAccentChange(color: string) {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
+}
+
+.zoom-btn--fit {
+  width: auto;
+  padding: 0 8px;
+  font-size: 18px;
 }
 
 .theme-picker-row {

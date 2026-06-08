@@ -17,7 +17,7 @@
         </div>
       </div>
 
-      <div style="margin-top:20px;text-align:right">
+      <div class="agent-selector-footer">
         <button class="modal-action primary" @click="confirm" :disabled="!ai.agentId">
           {{ ai.agentId ? 'done' : 'pick one first' }}
         </button>
@@ -42,3 +42,10 @@ function confirm() {
   emit('close')
 }
 </script>
+
+<style scoped>
+.agent-selector-footer {
+  margin-top: 20px;
+  text-align: right;
+}
+</style>
