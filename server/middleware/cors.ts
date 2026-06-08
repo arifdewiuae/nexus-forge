@@ -1,3 +1,5 @@
+import { CORS_MAX_AGE_SEC } from '~/lib/config'
+
 export default defineEventHandler((event) => {
   const origin = getHeader(event, 'origin') ?? ''
   const host   = getHeader(event, 'host')   ?? ''
@@ -18,7 +20,7 @@ export default defineEventHandler((event) => {
     setResponseHeaders(event, {
       'Access-Control-Allow-Methods':  'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers':  'Content-Type, x-fireworks-key',
-      'Access-Control-Max-Age':        '86400',
+      'Access-Control-Max-Age':        String(CORS_MAX_AGE_SEC),
     })
     event.node.res.statusCode = 204
     event.node.res.end()

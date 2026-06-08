@@ -1,5 +1,6 @@
 import { computeRadialLayout } from '~/lib/mindmap/layout'
 import type { MindMapAction } from '~/lib/ai/types'
+import { HIGHLIGHT_CLEAR_MS } from '~/lib/config'
 
 /** Graph-mutation surface the applier needs (subset of useGraphStore). */
 interface GraphStore {
@@ -48,8 +49,8 @@ export function applyAction(graph: GraphStore, ai: HighlightStore, action: MindM
 
     case 'highlight': {
       ai.setHighlighted(action.nodeIds)
-      // Auto-clear after 4 seconds
-      setTimeout(() => ai.clearHighlights(), 4000)
+      // Auto-clear after the configured highlight duration
+      setTimeout(() => ai.clearHighlights(), HIGHLIGHT_CLEAR_MS)
       break
     }
 

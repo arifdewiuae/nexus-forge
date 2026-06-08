@@ -1,10 +1,11 @@
 import type { MindMapNode, CrossLink, SerializedGraph, SerializedNode } from '~/lib/ai/types'
+import { GRAPH_LIMITS } from '~/lib/config'
 
 function ancestorsOf(nodes: MindMapNode[], id: string): MindMapNode[] {
   const out: MindMapNode[] = []
   let current: MindMapNode | undefined = nodes.find(n => n.id === id)
   let guard = 0
-  while (current && current.parent && guard++ < 50) {
+  while (current && current.parent && guard++ < GRAPH_LIMITS.ANCESTRY_GUARD) {
     const p = nodes.find(n => n.id === current!.parent)
     if (!p) break
     out.unshift(p)

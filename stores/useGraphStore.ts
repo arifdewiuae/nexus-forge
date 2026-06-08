@@ -5,13 +5,14 @@ import { defineStore, skipHydrate } from 'pinia'
 import type { MindMapNode, CrossLink } from '~/lib/ai/types'
 import { TOOL, SAVE_STATUS } from '~/lib/mindmap/constants'
 import type { Tool, SaveStatus } from '~/lib/mindmap/constants'
+import { GRAPH_LIMITS, PLACEMENT } from '~/lib/config'
 
 const STORAGE_KEY = 'handwritten-mindmap-v1'
-const HISTORY_LIMIT = 80
+const { HISTORY_LIMIT } = GRAPH_LIMITS
 
 const SEED: { title: string; nextId: number; nodes: MindMapNode[] } = {
   title: 'ideas',
-  nextId: 100,
+  nextId: GRAPH_LIMITS.SEED_NEXT_ID,
   nodes: [
     { id: 'root', x:    0, y:    0, label: 'central idea',    parent: null },
     { id: 'r',    x: -300, y: -150, label: 'Research',        parent: 'root' },
@@ -43,7 +44,7 @@ function loadInitial(): { title: string; nextId: number; nodes: MindMapNode[] } 
         const p = JSON.parse(raw)
         if (p && Array.isArray(p.nodes) && p.nodes.length) {
           if (typeof p.title !== 'string') p.title = 'untitled'
-          if (typeof p.nextId !== 'number') p.nextId = 100
+          if (typeof p.nextId !== 'number') p.nextId = GRAPH_LIMITS.SEED_NEXT_ID
           return p
         }
       }
@@ -73,24 +74,29 @@ export const useGraphStore = defineStore('graph', () => {
   function snapshot(): string {
     return JSON.stringify({ title: title.value, nextId: nextId.value, nodes: nodes.value, crossLinks: crossLinks.value })
   }
+
   function applySnapshot(s: string) {
     const p = JSON.parse(s)
     title.value  = p.title;  nextId.value = p.nextId
     nodes.value.splice(0, nodes.value.length, ...p.nodes)
     crossLinks.value.splice(0, crossLinks.value.length, ...(p.crossLinks ?? []))
   }
+
   function pushHistory() {
     past.value.push(snapshot())
     if (past.value.length > HISTORY_LIMIT) past.value.shift()
     future.value.length = 0
   }
   function undo() { if (!past.value.length) return; future.value.push(snapshot()); applySnapshot(past.value.pop()!) }
+
   function redo() { if (!future.value.length) return; past.value.push(snapshot()); applySnapshot(future.value.pop()!) }
+
   const canUndo = computed(() => past.value.length > 0)
   const canRedo = computed(() => future.value.length > 0)
 
   /* ---- persistence ---- */
   let saveTimer: ReturnType<typeof setTimeout> | null = null
+
   watch(
     () => ({ t: title.value, x: nextId.value, n: nodes.value }),
     () => {
@@ -101,7 +107,7 @@ export const useGraphStore = defineStore('graph', () => {
           if (import.meta.client) localStorage.setItem(STORAGE_KEY, snapshot())
           saveStatus.value = SAVE_STATUS.saved
         } catch { saveStatus.value = SAVE_STATUS.idle }
-      }, 220)
+      }, GRAPH_LIMITS.SAVE_DEBOUNCE_MS)
     },
     { deep: true }
   )
@@ -114,15 +120,17 @@ export const useGraphStore = defineStore('graph', () => {
     return nodes.value.find(n => n.parent === null) ?? nodes.value[0] ?? null
   }
   function childrenOf(id: string): MindMapNode[] { return nodes.value.filter(n => n.parent === id) }
+
   function ancestorsOf(id: string): MindMapNode[] {
     const out: MindMapNode[] = []; let n = nodeById(id); let guard = 0
-    while (n && n.parent && guard++ < 50) {
+    while (n && n.parent && guard++ < GRAPH_LIMITS.ANCESTRY_GUARD) {
       const p = nodeById(n.parent); if (!p) break
       out.unshift(p); n = p
     }
     return out
   }
   function levelOf(id: string): number { return ancestorsOf(id).length }
+
   function descendantsOf(id: string): string[] {
     const set = new Set([id]); let grew = true
     while (grew) {
@@ -148,8 +156,9 @@ export const useGraphStore = defineStore('graph', () => {
     const p = nodeById(parentId); if (!p) return null
     const sibs = childrenOf(parentId); const refs = [...sibs]
     const par = p.parent ? nodeById(p.parent) : null; if (par) refs.push(par)
-    let bestAngle = 0, bestScore = -Infinity; const radius = 200
-    for (let deg = 0; deg < 360; deg += 12) {
+    let bestAngle = 0, bestScore = -Infinity; const radius = PLACEMENT.CHILD_RADIUS
+
+    for (let deg = 0; deg < PLACEMENT.FULL_CIRCLE_DEG; deg += PLACEMENT.ANGLE_STEP_DEG) {
       const rad = deg * Math.PI / 180
       const tx = p.x + Math.cos(rad) * radius, ty = p.y + Math.sin(rad) * radius
       let dmin = Infinity
@@ -170,7 +179,7 @@ export const useGraphStore = defineStore('graph', () => {
 
   function setLabel(id: string, label: string) {
     const n = nodeById(id); if (!n) return
-    const clean = (label ?? '').toString().slice(0, 200)
+    const clean = (label ?? '').toString().slice(0, GRAPH_LIMITS.LABEL_MAX_CHARS)
     if (n.label === clean) return
     pushHistory(); n.label = clean || '·'
   }
@@ -180,7 +189,9 @@ export const useGraphStore = defineStore('graph', () => {
   }
 
   let _dragSnapshot: string | null = null
+
   function beginDrag() { _dragSnapshot = snapshot() }
+
   function endDrag(committed: boolean) {
     if (committed && _dragSnapshot) {
       past.value.push(_dragSnapshot)
@@ -194,12 +205,12 @@ export const useGraphStore = defineStore('graph', () => {
     if (!childId || !newParentId || childId === newParentId) return false
     const root = rootNode(); if (childId === root?.id) return false
     let cur = nodeById(newParentId); let guard = 0
-    while (cur && guard++ < 100) { if (cur.id === childId) return false; cur = cur.parent ? nodeById(cur.parent) : null }
+    while (cur && guard++ < GRAPH_LIMITS.REPARENT_GUARD) { if (cur.id === childId) return false; cur = cur.parent ? nodeById(cur.parent) : null }
     const c = nodeById(childId); if (!c || c.parent === newParentId) return false
     pushHistory(); c.parent = newParentId; return true
   }
 
-  function setTitle(t: string) { if (title.value === t) return; pushHistory(); title.value = (t || '').slice(0, 80) }
+  function setTitle(t: string) { if (title.value === t) return; pushHistory(); title.value = (t || '').slice(0, GRAPH_LIMITS.TITLE_MAX_CHARS) }
 
   function reset() {
     pushHistory(); const s = clone(SEED)
@@ -229,7 +240,7 @@ export const useGraphStore = defineStore('graph', () => {
       }
       if (rootCount === 0) p.nodes[0].parent = null
       pushHistory()
-      title.value  = (p.title || 'imported').toString().slice(0, 80)
+      title.value  = (p.title || 'imported').toString().slice(0, GRAPH_LIMITS.TITLE_MAX_CHARS)
       nextId.value = typeof p.nextId === 'number'
         ? p.nextId
         : (Math.max(0, ...p.nodes.map((n: MindMapNode) => parseInt((n.id || '').replace(/\D/g, '')) || 0)) + 1)
@@ -245,10 +256,12 @@ export const useGraphStore = defineStore('graph', () => {
     if (crossLinks.value.some(l => l.fromId === fromId && l.toId === toId)) return
     pushHistory(); crossLinks.value.push({ id: `cl-${fromId}-${toId}`, fromId, toId })
   }
+
   function removeCrossLink(id: string) {
     const idx = crossLinks.value.findIndex(l => l.id === id); if (idx === -1) return
     pushHistory(); crossLinks.value.splice(idx, 1)
   }
+
   function crossLinksOf(nodeId: string) {
     return crossLinks.value.filter(l => l.fromId === nodeId || l.toId === nodeId)
   }

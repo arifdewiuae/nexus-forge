@@ -158,6 +158,7 @@ import { useSpeechRecognition } from '~/composables/useSpeechRecognition'
 import { useSuggestionState } from '~/composables/useSuggestionState'
 import { stripSuggesterJson } from '~/lib/ai/thinking'
 import type { MindMapAction } from '~/lib/ai/types'
+import { AI_PANEL } from '~/lib/config'
 
 function isTouchDevice(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
@@ -171,8 +172,8 @@ const props = withDefaults(defineProps<{
   initialX?: number
   initialY?: number
 }>(), {
-  initialX: 110,
-  initialY: 144,
+  initialX: AI_PANEL.DEFAULT_ANCHOR_X,
+  initialY: AI_PANEL.DEFAULT_ANCHOR_Y,
 })
 
 const emit = defineEmits<{
@@ -244,6 +245,7 @@ onMounted(() => {
   mobileMq = window.matchMedia('(max-width: 800px)')
   mobileMq.addEventListener('change', syncMobileSheet)
 })
+
 onUnmounted(() => {
   cleanupDrag()
   stopMic()

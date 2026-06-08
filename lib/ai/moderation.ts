@@ -9,6 +9,7 @@
  * server/api/ai/analyze.post.ts), not a raw 4xx, so the client stays on one path.
  */
 import OpenAI from 'openai'
+import { VALIDATION } from '~/lib/config'
 
 /**
  * Prompt-injection / jailbreak patterns. Kept deliberately tight to avoid
@@ -54,7 +55,7 @@ export async function checkModeration(text: string, openaiKey?: string): Promise
       const client = new OpenAI({ apiKey: openaiKey })
       const res = await client.moderations.create({
         model: 'omni-moderation-latest',
-        input: text.slice(0, 4000),
+        input: text.slice(0, VALIDATION.MODERATION_INPUT_MAX_CHARS),
       })
       const result = res.results?.[0]
       if (result?.flagged) {

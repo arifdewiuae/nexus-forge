@@ -2,6 +2,7 @@
 import { computeRadialLayout } from '~/lib/mindmap/layout'
 import { TOOL } from '~/lib/mindmap/constants'
 import type { Tool } from '~/lib/mindmap/constants'
+import { AI_PANEL } from '~/lib/config'
 
 definePageMeta({ ssr: false })
 
@@ -24,15 +25,16 @@ function handleConfirmedReset() {
 const showAgentSelector = ref(false)
 
 /* ---- Panel anchor position (near Ask AI button) ---- */
-const panelAnchor = ref({ x: 110, y: 144 })
+const panelAnchor = ref<{ x: number; y: number }>({ x: AI_PANEL.DEFAULT_ANCHOR_X, y: AI_PANEL.DEFAULT_ANCHOR_Y })
 
 function computePanelAnchor() {
   const btn = toolbarRef.value?.aiBtn
   if (!btn) return
   const r = btn.getBoundingClientRect()
+
   panelAnchor.value = {
-    x: Math.max(8, r.left),
-    y: r.bottom + 10,
+    x: Math.max(AI_PANEL.ANCHOR_MIN_X, r.left),
+    y: r.bottom + AI_PANEL.ANCHOR_GAP_Y,
   }
 }
 
@@ -40,6 +42,7 @@ function computePanelAnchor() {
 onMounted(() => {
   document.documentElement.style.setProperty('--accent', settings.accentColor)
   ai.hydrateAgentFromStorage()
+
   if (!ai.agentId) showAgentSelector.value = true
 })
 

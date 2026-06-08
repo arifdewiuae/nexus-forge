@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { VALIDATION } from '~/lib/config'
 
 // ---- Node / Graph ----
 
@@ -81,7 +82,7 @@ export const BoardStreamEventSchema = z.discriminatedUnion('type', [
 export const AnalyzeRequestSchema = z.object({
   graph:      SerializedGraphSchema,
   agent:      AgentPersonaSchema.nullable().optional(),
-  userPrompt: z.string().max(2000).optional(),
+  userPrompt: z.string().max(VALIDATION.PROMPT_MAX_CHARS).optional(),
 })
 
 // ---- Inferred types (single source of truth) ----

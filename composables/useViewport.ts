@@ -1,10 +1,10 @@
 import { ref, computed } from 'vue'
 import type { Ref } from 'vue'
 import { nodeSize } from '~/lib/mindmap/geometry'
+import { VIEWPORT } from '~/lib/config'
 import type { MindMapNode } from '~/lib/ai/types'
 
-const ZOOM_MIN = 0.3
-const ZOOM_MAX = 2.6
+const { ZOOM_MIN, ZOOM_MAX } = VIEWPORT
 
 export function useViewport(vpSize: Ref<{ w: number; h: number }>) {
   const pan  = ref({ x: 0, y: 0 })
@@ -30,13 +30,13 @@ export function useViewport(vpSize: Ref<{ w: number; h: number }>) {
     pan.value  = { x: cx - wx * next, y: cy - wy * next }
   }
 
-  function zoomIn()  { setZoomAtCenter(zoom.value * 1.2) }
-  function zoomOut() { setZoomAtCenter(zoom.value / 1.2) }
+  function zoomIn()  { setZoomAtCenter(zoom.value * VIEWPORT.ZOOM_STEP) }
+  function zoomOut() { setZoomAtCenter(zoom.value / VIEWPORT.ZOOM_STEP) }
 
   function onWheel(e: WheelEvent) {
     e.preventDefault()
     if (e.ctrlKey || e.metaKey) {
-      const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12
+      const factor = e.deltaY < 0 ? VIEWPORT.WHEEL_ZOOM_STEP : 1 / VIEWPORT.WHEEL_ZOOM_STEP
       const next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom.value * factor))
       const wx = (e.clientX - pan.value.x) / zoom.value
       const wy = (e.clientY - pan.value.y) / zoom.value
@@ -55,17 +55,17 @@ export function useViewport(vpSize: Ref<{ w: number; h: number }>) {
       minX = Math.min(minX, n.x - sz.w / 2); maxX = Math.max(maxX, n.x + sz.w / 2)
       minY = Math.min(minY, n.y - sz.h / 2); maxY = Math.max(maxY, n.y + sz.h / 2)
     }
-    const margin = 60
+    const margin = VIEWPORT.FIT_MARGIN
     const W = maxX - minX + margin * 2, H = maxY - minY + margin * 2
-    const isNarrow     = vpSize.value.w < 800
-    const sideNoteOpen = vpSize.value.w >= 1100
-    const topReserve    = isNarrow ? 150 : 170
-    const bottomReserve = isNarrow ? 110 : 70
-    const rightReserve  = sideNoteOpen ? 320 : 24
-    const leftReserve   = 24
-    const availW = Math.max(200, vpSize.value.w - leftReserve - rightReserve)
-    const availH = Math.max(200, vpSize.value.h - topReserve  - bottomReserve)
-    zoom.value = Math.max(0.45, Math.min(1.3, Math.min(availW / W, availH / H)))
+    const isNarrow     = vpSize.value.w < VIEWPORT.NARROW_BREAKPOINT
+    const sideNoteOpen = vpSize.value.w >= VIEWPORT.SIDENOTE_BREAKPOINT
+    const topReserve    = isNarrow ? VIEWPORT.TOP_RESERVE_NARROW : VIEWPORT.TOP_RESERVE_WIDE
+    const bottomReserve = isNarrow ? VIEWPORT.BOTTOM_RESERVE_NARROW : VIEWPORT.BOTTOM_RESERVE_WIDE
+    const rightReserve  = sideNoteOpen ? VIEWPORT.RIGHT_RESERVE_SIDENOTE : VIEWPORT.RIGHT_RESERVE
+    const leftReserve   = VIEWPORT.LEFT_RESERVE
+    const availW = Math.max(VIEWPORT.MIN_AVAIL, vpSize.value.w - leftReserve - rightReserve)
+    const availH = Math.max(VIEWPORT.MIN_AVAIL, vpSize.value.h - topReserve  - bottomReserve)
+    zoom.value = Math.max(VIEWPORT.FIT_ZOOM_MIN, Math.min(VIEWPORT.FIT_ZOOM_MAX, Math.min(availW / W, availH / H)))
     const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2
     pan.value  = { x: leftReserve + availW / 2 - cx * zoom.value, y: topReserve + availH / 2 - cy * zoom.value }
   }

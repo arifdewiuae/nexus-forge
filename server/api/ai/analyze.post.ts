@@ -3,7 +3,7 @@ import { runMindMapAnalysis } from '~/lib/ai/graph'
 import type { BoardStreamEvent } from '~/lib/ai/types'
 import { AnalyzeRequestSchema } from '~/lib/ai/schemas'
 import { checkModeration } from '~/lib/ai/moderation'
-import { HEADER_FIREWORKS_KEY, RATE_LIMIT } from '~/lib/config'
+import { HEADER_FIREWORKS_KEY, RATE_LIMIT, VALIDATION } from '~/lib/config'
 import { checkRateLimitAsync } from '~/server/utils/rateLimit'
 
 function resolveApiKey(
@@ -28,12 +28,15 @@ export default defineEventHandler(async (event) => {
   const ip = getHeader(event, 'x-forwarded-for')?.split(',')[0]?.trim()
     ?? event.node.req.socket?.remoteAddress
     ?? 'unknown'
-  const rateLimitKey = userKey ? `key:${userKey.slice(-8)}` : `ip:${ip}`
+
+  const rateLimitKey = userKey ? `key:${userKey.slice(-VALIDATION.RATE_LIMIT_KEY_SUFFIX_LEN)}` : `ip:${ip}`
   // Own-key callers get a looser budget than the shared demo key (our spend).
   const limit = userKey ? RATE_LIMIT.OWN_MAX_REQUESTS : RATE_LIMIT.DEMO_MAX_REQUESTS
   const { allowed, remaining, retryAfterSec } = await checkRateLimitAsync(rateLimitKey, limit)
+
   setResponseHeader(event, 'X-RateLimit-Limit', String(limit))
   setResponseHeader(event, 'X-RateLimit-Remaining', String(remaining))
+
   if (!allowed) {
     setResponseHeader(event, 'Retry-After', retryAfterSec)
     throw createError({ statusCode: 429, message: 'Too many requests. Try again later.' })
@@ -43,10 +46,11 @@ export default defineEventHandler(async (event) => {
 
   // Hard cap on raw payload size before Zod parse
   const serialized = JSON.stringify(raw)
+
   if (serialized.includes('\u0000')) {
     throw createError({ statusCode: 400, message: 'Request contains invalid characters.' })
   }
-  if (serialized.length > 50_000) {
+  if (serialized.length > VALIDATION.PAYLOAD_MAX_BYTES) {
     throw createError({ statusCode: 400, message: 'Mind map is too large to analyze (max 50 KB).' })
   }
 
