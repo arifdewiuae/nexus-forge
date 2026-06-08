@@ -1,4 +1,5 @@
 import type { MindMapAction } from '~/lib/ai/types'
+import { ACTION_KIND } from '~/lib/mindmap/constants'
 
 /** Short label for an action kind (the chip text on a suggestion card). */
 const KIND_LABELS: Record<MindMapAction['kind'], string> = {
@@ -21,15 +22,15 @@ export function kindLabel(kind: string): string {
  */
 export function describeAction(action: MindMapAction, resolveLabel: (id: string) => string): string {
   switch (action.kind) {
-    case 'add_node':
+    case ACTION_KIND.add_node:
       return `Add "${action.label}" under "${resolveLabel(action.parentId)}"${action.description ? ' — ' + action.description : ''}`
-    case 'link_nodes':
+    case ACTION_KIND.link_nodes:
       return `Link "${resolveLabel(action.fromId)}" → "${resolveLabel(action.toId)}"`
-    case 'relabel':
+    case ACTION_KIND.relabel:
       return `Rename "${resolveLabel(action.nodeId)}" → "${action.label}"`
-    case 'highlight':
+    case ACTION_KIND.highlight:
       return action.reason
-    case 'expand_branch':
+    case ACTION_KIND.expand_branch:
       return `Expand "${resolveLabel(action.parentId)}" with ${action.children.length} new child nodes`
     default:
       return JSON.stringify(action)

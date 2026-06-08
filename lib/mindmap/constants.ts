@@ -21,3 +21,14 @@ export const SAVE_STATUS = {
   saved:  'saved',
 } as const
 export type SaveStatus = (typeof SAVE_STATUS)[keyof typeof SAVE_STATUS]
+
+/** AI board-action kinds — the suggester's vocabulary (mirrors MindMapActionSchema). */
+export const ACTION_KIND = {
+  add_node:      'add_node',
+  link_nodes:    'link_nodes',
+  relabel:       'relabel',
+  highlight:     'highlight',
+  expand_branch: 'expand_branch',
+  tidy_layout:   'tidy_layout',
+} as const
+export type ActionKind = (typeof ACTION_KIND)[keyof typeof ACTION_KIND]
