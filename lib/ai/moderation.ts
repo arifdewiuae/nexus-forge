@@ -53,15 +53,18 @@ export async function checkModeration(text: string, openaiKey?: string): Promise
   if (openaiKey) {
     try {
       const client = new OpenAI({ apiKey: openaiKey })
+
       const res = await client.moderations.create({
         model: 'omni-moderation-latest',
         input: text.slice(0, VALIDATION.MODERATION_INPUT_MAX_CHARS),
       })
       const result = res.results?.[0]
+
       if (result?.flagged) {
         const categories = Object.entries(result.categories ?? {})
           .filter(([, on]) => on)
           .map(([name]) => name)
+
         return {
           blocked: true,
           reason: `Content was flagged by moderation${categories.length ? ` (${categories.join(', ')})` : ''}.`,

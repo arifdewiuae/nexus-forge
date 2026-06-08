@@ -27,6 +27,7 @@ export async function* readSseStream<T>(body: ReadableStream<Uint8Array>): Async
       for (const line of lines) {
         if (!line.startsWith(SSE_DATA_PREFIX)) continue
         const raw = line.slice(SSE_DATA_PREFIX.length).trim()
+
         if (!raw || raw === '[DONE]') continue
         yield JSON.parse(raw) as T
       }
