@@ -1,4 +1,5 @@
 import type { Ref } from 'vue'
+import { VIEWPORT } from '~/lib/config'
 
 interface Viewport {
   pan: Ref<{ x: number; y: number }>
@@ -11,10 +12,13 @@ interface TouchPoint {
   y: number
 }
 
-const ZOOM_MIN = 0.3
-const ZOOM_MAX = 2.6
+/** Hold duration before a single-finger press fires onLongPress (ms). */
 const LONG_PRESS_MS = 500
+/** Finger travel that cancels a pending long-press (screen px). */
 const LONG_PRESS_MOVE_THRESHOLD = 8
+/** Active-touch counts that select a gesture. */
+const SINGLE_TOUCH = 1
+const PINCH_TOUCHES = 2
 
 /**
  * Attaches touch gesture handlers to a canvas element.
@@ -57,97 +61,100 @@ export function useTouchGestures(
     }
   }
 
-  function onTouchStart(e: TouchEvent) {
+  /** Merge each changed touch into the active-touch map. */
+  function syncTouches(e: TouchEvent) {
     for (let i = 0; i < e.changedTouches.length; i++) {
       const t = e.changedTouches[i]!
       activeTouches.set(t.identifier, { id: t.identifier, x: t.clientX, y: t.clientY })
     }
+  }
 
-    if (activeTouches.size === 1) {
-      const touch = [...activeTouches.values()][0]!
-      longPressStartX = touch.x
-      longPressStartY = touch.y
-      cancelLongPress()
+  const firstTouch = () => [...activeTouches.values()][0]!
+  const bothTouches = () => [...activeTouches.values()] as [TouchPoint, TouchPoint]
 
-      longPressTimer = setTimeout(() => {
-        onLongPress(longPressStartX, longPressStartY)
-        longPressTimer = null
-      }, LONG_PRESS_MS)
+  /** Arm a long-press from the single active finger. */
+  function startLongPress() {
+    const touch = firstTouch()
+    longPressStartX = touch.x
+    longPressStartY = touch.y
+    cancelLongPress()
+    longPressTimer = setTimeout(() => {
+      onLongPress(longPressStartX, longPressStartY)
+      longPressTimer = null
+    }, LONG_PRESS_MS)
+  }
+
+  /** Cancel the pending long-press once the finger drifts past the threshold. */
+  function cancelLongPressIfMoved() {
+    const touch = firstTouch()
+    const dx = touch.x - longPressStartX
+    const dy = touch.y - longPressStartY
+    if (Math.hypot(dx, dy) > LONG_PRESS_MOVE_THRESHOLD) cancelLongPress()
+  }
+
+  /** Capture pinch baseline (distance + midpoint) when the second finger lands. */
+  function beginPinch() {
+    const [a, b] = bothTouches()
+    lastPinchDist = dist(a, b)
+    const mid = midpoint(a, b)
+    lastMidX = mid.x
+    lastMidY = mid.y
+  }
+
+  /** Apply two-finger pinch-zoom (preserving the world point under the midpoint) plus pan. */
+  function updatePinchPan() {
+    const [a, b] = bothTouches()
+    const newDist = dist(a, b)
+    const mid = midpoint(a, b)
+    const panDeltaX = mid.x - lastMidX
+    const panDeltaY = mid.y - lastMidY
+
+    if (newDist > 0 && lastPinchDist > 0) {
+      const scale = newDist / lastPinchDist
+      const newZoom = Math.max(VIEWPORT.ZOOM_MIN, Math.min(VIEWPORT.ZOOM_MAX, viewport.zoom.value * scale))
+
+      // Preserve world point under midpoint
+      const wx = (mid.x - viewport.pan.value.x) / viewport.zoom.value
+      const wy = (mid.y - viewport.pan.value.y) / viewport.zoom.value
+
+      viewport.zoom.value = newZoom
+      viewport.pan.value = {
+        x: mid.x - wx * newZoom + panDeltaX,
+        y: mid.y - wy * newZoom + panDeltaY,
+      }
     } else {
-      cancelLongPress()
+      // Stable distance: pure two-finger pan
+      viewport.pan.value = {
+        x: viewport.pan.value.x + panDeltaX,
+        y: viewport.pan.value.y + panDeltaY,
+      }
     }
 
-    if (activeTouches.size === 2) {
-      const [a, b] = [...activeTouches.values()] as [TouchPoint, TouchPoint]
-      lastPinchDist = dist(a, b)
-      const mid = midpoint(a, b)
-      lastMidX = mid.x
-      lastMidY = mid.y
-    }
+    lastPinchDist = newDist
+    lastMidX = mid.x
+    lastMidY = mid.y
+  }
+
+  function onTouchStart(e: TouchEvent) {
+    syncTouches(e)
+    if (activeTouches.size === SINGLE_TOUCH) startLongPress()
+    else cancelLongPress()
+    if (activeTouches.size === PINCH_TOUCHES) beginPinch()
   }
 
   function onTouchMove(e: TouchEvent) {
     e.preventDefault()
-
-    for (let i = 0; i < e.changedTouches.length; i++) {
-      const t = e.changedTouches[i]!
-      activeTouches.set(t.identifier, { id: t.identifier, x: t.clientX, y: t.clientY })
-    }
-
-    if (activeTouches.size === 1) {
-      const touch = [...activeTouches.values()][0]!
-      const dx = touch.x - longPressStartX
-      const dy = touch.y - longPressStartY
-      if (Math.hypot(dx, dy) > LONG_PRESS_MOVE_THRESHOLD) {
-        cancelLongPress()
-      }
-    }
-
-    if (activeTouches.size === 2) {
-      const [a, b] = [...activeTouches.values()] as [TouchPoint, TouchPoint]
-      const newDist = dist(a, b)
-      const mid = midpoint(a, b)
-
-      const panDeltaX = mid.x - lastMidX
-      const panDeltaY = mid.y - lastMidY
-
-      if (newDist > 0 && lastPinchDist > 0) {
-        const scale = newDist / lastPinchDist
-        const newZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, viewport.zoom.value * scale))
-
-        // Preserve world point under midpoint
-        const wx = (mid.x - viewport.pan.value.x) / viewport.zoom.value
-        const wy = (mid.y - viewport.pan.value.y) / viewport.zoom.value
-
-        viewport.zoom.value = newZoom
-        viewport.pan.value = {
-          x: mid.x - wx * newZoom + panDeltaX,
-          y: mid.y - wy * newZoom + panDeltaY,
-        }
-      } else {
-        // Stable distance: pure two-finger pan
-        viewport.pan.value = {
-          x: viewport.pan.value.x + panDeltaX,
-          y: viewport.pan.value.y + panDeltaY,
-        }
-      }
-
-      lastPinchDist = newDist
-      lastMidX = mid.x
-      lastMidY = mid.y
-    }
+    syncTouches(e)
+    if (activeTouches.size === SINGLE_TOUCH) cancelLongPressIfMoved()
+    else if (activeTouches.size === PINCH_TOUCHES) updatePinchPan()
   }
 
   function onTouchEnd(e: TouchEvent) {
     for (let i = 0; i < e.changedTouches.length; i++) {
       activeTouches.delete(e.changedTouches[i]!.identifier)
     }
-    if (activeTouches.size < 2) {
-      lastPinchDist = 0
-    }
-    if (activeTouches.size === 0) {
-      cancelLongPress()
-    }
+    if (activeTouches.size < PINCH_TOUCHES) lastPinchDist = 0   // pinch ended
+    if (activeTouches.size === 0) cancelLongPress()             // all fingers up
   }
 
   function attach() {

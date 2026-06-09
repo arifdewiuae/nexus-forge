@@ -6,7 +6,7 @@
        @pointerdown="onCanvasPointerDown"
        @pointermove="onCanvasPointerMove">
     <svg xmlns="http://www.w3.org/2000/svg"
-         :viewBox="`0 0 ${vpSize.w} ${vpSize.h}`"
+         :viewBox="`0 0 ${viewportSize.w} ${viewportSize.h}`"
          preserveAspectRatio="xMidYMid slice">
       <defs>
         <filter id="wobble" x="-5%" y="-5%" width="110%" height="110%">
@@ -100,9 +100,10 @@ import { useTouchGestures } from '~/composables/useTouchGestures'
 import { useViewport } from '~/composables/useViewport'
 import { useNodeDrag } from '~/composables/useNodeDrag'
 import { useLabelEditor } from '~/composables/useLabelEditor'
-import { nodeSize, rotFor, sketchRectPath, edgePath } from '~/lib/mindmap/geometry'
+import { nodeSize, rotFor, sketchRectPath, edgePath, SKETCH_JITTER } from '~/lib/mindmap/geometry'
 import { exportPng } from '~/lib/mindmap/exportPng'
 import { TOOL } from '~/lib/mindmap/constants'
+import { VIEWPORT } from '~/lib/config'
 import type { MindMapNode } from '~/lib/ai/types'
 
 const graph = useGraphStore()
@@ -112,14 +113,14 @@ const canvasEl = ref<HTMLElement | null>(null)
 const editorEl = ref<HTMLInputElement | null>(null)
 const panning  = ref(false)
 const cursorWorld = ref<{ x: number; y: number } | null>(null)
-const vpSize   = ref({ w: 1280, h: 800 })
+const viewportSize = ref<{ w: number; h: number }>({ ...VIEWPORT.DEFAULT_SIZE })
 
-function updateVpSize() {
-  vpSize.value = { w: window.innerWidth, h: window.innerHeight }
+function updateViewportSize() {
+  viewportSize.value = { w: window.innerWidth, h: window.innerHeight }
 }
 
 /* ---- viewport: pan / zoom / fit (composable owns pan+zoom refs) ---- */
-const viewport = useViewport(vpSize)
+const viewport = useViewport(viewportSize)
 const { pan, zoom, transform, zoomPct, worldToScreen, screenToWorld, onWheel, zoomIn, zoomOut } = viewport
 function fitView()       { viewport.fitView(graph.nodes, id => graph.levelOf(id)) }
 function centerOn(id: string) { const n = graph.nodeById(id); if (n) viewport.centerOn(n) }
@@ -146,9 +147,9 @@ const nodeDrag = useNodeDrag(zoom, {
 })
 
 function onLongPressOnCanvas(clientX: number, clientY: number) {
-  const w = screenToWorld(clientX, clientY)
+  const world = screenToWorld(clientX, clientY)
   // Find node near the long-press point (within 80px world units)
-  const hit = graph.nodes.find(n => Math.hypot(n.x - w.x, n.y - w.y) < 80)
+  const hit = graph.nodes.find(n => Math.hypot(n.x - world.x, n.y - world.y) < 80)
   if (hit) {
     graph.selectedId = hit.id
     startEdit(hit)
@@ -162,18 +163,21 @@ const touchGestures = useTouchGestures(
 )
 
 onMounted(() => {
-  updateVpSize()
-  window.addEventListener('resize', updateVpSize)
+  updateViewportSize()
+  window.addEventListener('resize', updateViewportSize)
   pan.value = {
     x: window.innerWidth / 2,
-    y: Math.min(window.innerHeight / 2 + 60, window.innerHeight - 200),
+    y: Math.min(
+      window.innerHeight / 2 + VIEWPORT.INITIAL_PAN_TOP_OFFSET,
+      window.innerHeight - VIEWPORT.INITIAL_PAN_BOTTOM_MARGIN,
+    ),
   }
   requestAnimationFrame(() => fitView())
   touchGestures.attach()
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('resize', updateVpSize)
+  window.removeEventListener('resize', updateViewportSize)
   window.removeEventListener('pointermove', onPanMove)
   window.removeEventListener('pointerup', onPanUp)
   nodeDrag.cleanup()
@@ -231,7 +235,7 @@ function decorOf(node: MindMapNode) {
   return {
     w, h, fontSize, radius, x, y,
     path0: sketchRectPath(x, y, w, h, radius, 0),
-    path1: sketchRectPath(x, y, w, h, radius, 1.2),
+    path1: sketchRectPath(x, y, w, h, radius, SKETCH_JITTER),
     rot: rotFor(node.id),
     level: lvl,
   }
@@ -245,10 +249,11 @@ function onCanvasPointerDown(e: PointerEvent) {
   if (graph.editingId) { commitLabelEditor(true); return }
 
   if (graph.tool === TOOL.add && e.button === 0) {
-    const w = screenToWorld(e.clientX, e.clientY)
+    const world = screenToWorld(e.clientX, e.clientY)
     const parentId = graph.selectedId ?? graph.rootNode()?.id
+
     if (parentId) {
-      const newId = graph.addNodeAt(parentId, w.x, w.y, 'new idea')
+      const newId = graph.addNodeAt(parentId, world.x, world.y, 'new idea')
       draftLabel.value = 'new idea'
       markEdgeNew(`${parentId}->${newId}`)
       nextTick(() => { editorEl.value?.focus(); editorEl.value?.select() })
@@ -260,6 +265,7 @@ function onCanvasPointerDown(e: PointerEvent) {
 
   panStart = { x: e.clientX, y: e.clientY, px: pan.value.x, py: pan.value.y, moved: false }
   panning.value = true
+
   window.addEventListener('pointermove', onPanMove)
   window.addEventListener('pointerup', onPanUp)
 }

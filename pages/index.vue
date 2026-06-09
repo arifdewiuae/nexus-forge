@@ -10,8 +10,8 @@ const toolbarRef = ref<{ aiBtn: HTMLButtonElement | null } | null>(null)
 const graph = useGraphStore()
 const ai = useAIStore()
 const settings = useSettingsStore()
-
 const modal = ref<{ open: boolean; mode: 'export' | 'import' | 'help' | 'confirm' | 'settings' | null }>({ open: false, mode: null })
+
 function openModal(mode: 'export' | 'import' | 'help' | 'confirm' | 'settings') { modal.value = { open: true, mode } }
 function closeModal() { modal.value = { open: false, mode: null } }
 
