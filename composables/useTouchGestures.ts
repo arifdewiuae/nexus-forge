@@ -16,6 +16,9 @@ interface TouchPoint {
 const LONG_PRESS_MS = 500
 /** Finger travel that cancels a pending long-press (screen px). */
 const LONG_PRESS_MOVE_THRESHOLD = 8
+/** Active-touch counts that select a gesture. */
+const SINGLE_TOUCH = 1
+const PINCH_TOUCHES = 2
 
 /**
  * Attaches touch gesture handlers to a canvas element.
@@ -134,28 +137,24 @@ export function useTouchGestures(
 
   function onTouchStart(e: TouchEvent) {
     syncTouches(e)
-    if (activeTouches.size === 1) startLongPress()
+    if (activeTouches.size === SINGLE_TOUCH) startLongPress()
     else cancelLongPress()
-    if (activeTouches.size === 2) beginPinch()
+    if (activeTouches.size === PINCH_TOUCHES) beginPinch()
   }
 
   function onTouchMove(e: TouchEvent) {
     e.preventDefault()
     syncTouches(e)
-    if (activeTouches.size === 1) cancelLongPressIfMoved()
-    else if (activeTouches.size === 2) updatePinchPan()
+    if (activeTouches.size === SINGLE_TOUCH) cancelLongPressIfMoved()
+    else if (activeTouches.size === PINCH_TOUCHES) updatePinchPan()
   }
 
   function onTouchEnd(e: TouchEvent) {
     for (let i = 0; i < e.changedTouches.length; i++) {
       activeTouches.delete(e.changedTouches[i]!.identifier)
     }
-    if (activeTouches.size < 2) {
-      lastPinchDist = 0
-    }
-    if (activeTouches.size === 0) {
-      cancelLongPress()
-    }
+    if (activeTouches.size < PINCH_TOUCHES) lastPinchDist = 0   // pinch ended
+    if (activeTouches.size === 0) cancelLongPress()             // all fingers up
   }
 
   function attach() {
