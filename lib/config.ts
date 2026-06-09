@@ -111,6 +111,12 @@ export const VIEWPORT = {
   LEFT_RESERVE: 24,
   /** Floor on the available fit area (screen px). */
   MIN_AVAIL: 200,
+  /** Pre-mount / SSR viewport placeholder, overwritten onMounted from window. */
+  DEFAULT_SIZE: { w: 1280, h: 800 },
+  /** Initial pan: nudge the origin below screen centre (screen px). */
+  INITIAL_PAN_TOP_OFFSET: 60,
+  /** Initial pan: keep at least this much space below the origin (screen px). */
+  INITIAL_PAN_BOTTOM_MARGIN: 200,
 } as const
 
 /** AI panel default anchor + offsets (pages/index.vue, components/AIPanel.vue). */

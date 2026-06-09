@@ -26,6 +26,7 @@ export function useViewport(vpSize: Ref<{ w: number; h: number }>) {
     const next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, targetZoom))
     const wx = (cx - pan.value.x) / zoom.value
     const wy = (cy - pan.value.y) / zoom.value
+
     zoom.value = next
     pan.value  = { x: cx - wx * next, y: cy - wy * next }
   }
@@ -35,11 +36,13 @@ export function useViewport(vpSize: Ref<{ w: number; h: number }>) {
 
   function onWheel(e: WheelEvent) {
     e.preventDefault()
+
     if (e.ctrlKey || e.metaKey) {
       const factor = e.deltaY < 0 ? VIEWPORT.WHEEL_ZOOM_STEP : 1 / VIEWPORT.WHEEL_ZOOM_STEP
       const next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom.value * factor))
       const wx = (e.clientX - pan.value.x) / zoom.value
       const wy = (e.clientY - pan.value.y) / zoom.value
+
       zoom.value = next
       pan.value  = { x: e.clientX - wx * next, y: e.clientY - wy * next }
     } else {
@@ -50,11 +53,13 @@ export function useViewport(vpSize: Ref<{ w: number; h: number }>) {
   function fitView(nodes: MindMapNode[], levelOf: (id: string) => number) {
     if (!nodes.length) return
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+
     for (const node of nodes) {
       const size = nodeSize(node, levelOf(node.id))
       minX = Math.min(minX, node.x - size.w / 2); maxX = Math.max(maxX, node.x + size.w / 2)
       minY = Math.min(minY, node.y - size.h / 2); maxY = Math.max(maxY, node.y + size.h / 2)
     }
+
     const margin = VIEWPORT.FIT_MARGIN
     const W = maxX - minX + margin * 2, H = maxY - minY + margin * 2
     const isNarrow     = vpSize.value.w < VIEWPORT.NARROW_BREAKPOINT
@@ -65,6 +70,7 @@ export function useViewport(vpSize: Ref<{ w: number; h: number }>) {
     const leftReserve   = VIEWPORT.LEFT_RESERVE
     const availW = Math.max(VIEWPORT.MIN_AVAIL, vpSize.value.w - leftReserve - rightReserve)
     const availH = Math.max(VIEWPORT.MIN_AVAIL, vpSize.value.h - topReserve  - bottomReserve)
+
     zoom.value = Math.max(VIEWPORT.FIT_ZOOM_MIN, Math.min(VIEWPORT.FIT_ZOOM_MAX, Math.min(availW / W, availH / H)))
     const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2
     pan.value  = { x: leftReserve + availW / 2 - cx * zoom.value, y: topReserve + availH / 2 - cy * zoom.value }

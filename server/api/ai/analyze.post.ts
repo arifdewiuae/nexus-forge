@@ -10,10 +10,9 @@ import { openSseStream } from '~/server/utils/sse'
 /** H3 event type, derived without importing h3 (matches the rest of server/). */
 type ApiEvent = Parameters<typeof getHeader>[0]
 
-/** The request's API key: caller's header key, or the server demo key when enabled. */
-function resolveApiKey(event: ApiEvent, runtimeKey: string, demoEnabled: boolean): string {
-  const headerKey = getHeader(event, HEADER_FIREWORKS_KEY)?.trim()
-  if (headerKey) return headerKey
+/** The request's API key: caller's own key, or the server demo key when enabled. */
+function resolveApiKey(userKey: string, runtimeKey: string, demoEnabled: boolean): string {
+  if (userKey) return userKey
   if (demoEnabled && runtimeKey) return runtimeKey
   return ''
 }
@@ -59,6 +58,7 @@ async function validateAnalyzeRequest(event: ApiEvent): Promise<AnalyzeRequest> 
   }
 
   const parsed = AnalyzeRequestSchema.safeParse(raw)
+
   if (!parsed.success) {
     const issues = parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')
     throw createError({ statusCode: 400, message: `Invalid request: ${issues}` })
@@ -69,6 +69,30 @@ async function validateAnalyzeRequest(event: ApiEvent): Promise<AnalyzeRequest> 
   return parsed.data
 }
 
+/** Structured request log line for correlation / log archaeology. */
+function logAnalyzeRequest(requestId: string, req: AnalyzeRequest, userKey: string): void {
+  console.info(JSON.stringify({
+    tag: 'ai.analyze', requestId, nodeCount: req.graph.nodeCount,
+    agent: req.agent?.id ?? null, tier: userKey ? 'own' : 'demo',
+  }))
+}
+
+/**
+ * Moderate prompt + node labels (after rate-limit, before the LLM). On a block,
+ * emits an SSE `error` frame and returns true so the caller stops — the block is
+ * a stream frame, not a 4xx, keeping the client on one code path.
+ */
+async function isBlockedByModeration(
+  send: (event: BoardStreamEvent) => void,
+  req: AnalyzeRequest,
+): Promise<boolean> {
+  const text = [req.userPrompt ?? '', ...req.graph.nodes.map(node => node.label)].join('\n')
+  const moderation = await checkModeration(text, process.env.OPENAI_API_KEY)
+  if (!moderation.blocked) return false
+  send({ type: 'error', message: moderation.reason ?? 'Your request was blocked by content moderation.' })
+  return true
+}
+
 /**
  * SSE route. Policy pipeline runs first and short-circuits with a normal HTTP
  * status; once the stream is open, failures (moderation, model) surface as SSE
@@ -76,36 +100,22 @@ async function validateAnalyzeRequest(event: ApiEvent): Promise<AnalyzeRequest> 
  */
 export default defineEventHandler(async (event) => {
   const userKey = getHeader(event, HEADER_FIREWORKS_KEY)?.trim() ?? ''
-  const apiKey = resolveApiKey(event, process.env.FIREWORKS_API_KEY ?? '', process.env.DEMO_KEYS_ENABLED === 'true')
+  const apiKey = resolveApiKey(userKey, process.env.FIREWORKS_API_KEY ?? '', process.env.DEMO_KEYS_ENABLED === 'true')
   if (!apiKey) {
     throw createError({ statusCode: 401, message: 'No API key configured. Add your Fireworks key in Settings (⚙ keys).' })
   }
 
   await enforceRateLimit(event, userKey)
-  const { graph, agent, userPrompt } = await validateAnalyzeRequest(event)
+  const req = await validateAnalyzeRequest(event)
 
-  // Correlation id for log archaeology; echoed to the client for support.
   const requestId = randomUUID()
-  setResponseHeader(event, 'X-Request-Id', requestId)
-  console.info(JSON.stringify({
-    tag: 'ai.analyze', requestId, nodeCount: graph.nodeCount,
-    agent: agent?.id ?? null, tier: userKey ? 'own' : 'demo',
-  }))
+  setResponseHeader(event, 'X-Request-Id', requestId)   // echoed to the client for support
+  logAnalyzeRequest(requestId, req, userKey)
 
   const stream = openSseStream<BoardStreamEvent>(event)
-
-  // Moderation runs after rate limit, before the LLM. Blocks come back as an SSE
-  // error frame (not a 4xx) so the client stays on one code path.
-  const moderationText = [userPrompt ?? '', ...graph.nodes.map(node => node.label)].join('\n')
-  const moderation = await checkModeration(moderationText, process.env.OPENAI_API_KEY)
-  if (moderation.blocked) {
-    stream.send({ type: 'error', message: moderation.reason ?? 'Your request was blocked by content moderation.' })
-    stream.close()
-    return
-  }
-
   try {
-    await runMindMapAnalysis(graph, agent ?? null, userPrompt ?? '', apiKey, stream.send, stream.signal)
+    if (await isBlockedByModeration(stream.send, req)) return
+    await runMindMapAnalysis(req.graph, req.agent ?? null, req.userPrompt ?? '', apiKey, stream.send, stream.signal)
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') return
     stream.send({ type: 'error', message: err instanceof Error ? err.message : 'Analysis failed unexpectedly.' })

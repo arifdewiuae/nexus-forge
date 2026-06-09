@@ -6,6 +6,7 @@ import type { MindMapNode, CrossLink } from '~/lib/ai/types'
 import { TOOL, SAVE_STATUS } from '~/lib/mindmap/constants'
 import type { Tool, SaveStatus } from '~/lib/mindmap/constants'
 import { GRAPH_LIMITS, PLACEMENT } from '~/lib/config'
+import * as tree from '~/lib/mindmap/tree'
 
 const STORAGE_KEY = 'handwritten-mindmap-v1'
 const { HISTORY_LIMIT } = GRAPH_LIMITS
@@ -112,35 +113,13 @@ export const useGraphStore = defineStore('graph', () => {
     { deep: true }
   )
 
-  /* ---- helpers ---- */
-  function nodeById(id: string): MindMapNode | null {
-    return nodes.value.find(n => n.id === id) ?? null
-  }
-  function rootNode(): MindMapNode | null {
-    return nodes.value.find(n => n.parent === null) ?? nodes.value[0] ?? null
-  }
-  function childrenOf(id: string): MindMapNode[] { return nodes.value.filter(n => n.parent === id) }
-
-  function ancestorsOf(id: string): MindMapNode[] {
-    const out: MindMapNode[] = []; let n = nodeById(id); let guard = 0
-    while (n && n.parent && guard++ < GRAPH_LIMITS.ANCESTRY_GUARD) {
-      const p = nodeById(n.parent); if (!p) break
-      out.unshift(p); n = p
-    }
-    return out
-  }
-  function levelOf(id: string): number { return ancestorsOf(id).length }
-
-  function descendantsOf(id: string): string[] {
-    const set = new Set([id]); let grew = true
-    while (grew) {
-      grew = false
-      for (const n of nodes.value) {
-        if (!set.has(n.id) && n.parent !== null && set.has(n.parent)) { set.add(n.id); grew = true }
-      }
-    }
-    set.delete(id); return [...set]
-  }
+  /* ---- traversal (pure logic in lib/mindmap/tree, bound to nodes.value here) ---- */
+  const nodeById      = (id: string) => tree.nodeById(nodes.value, id)
+  const rootNode      = () => tree.rootNode(nodes.value)
+  const childrenOf    = (id: string) => tree.childrenOf(nodes.value, id)
+  const ancestorsOf   = (id: string) => tree.ancestorsOf(nodes.value, id)
+  const levelOf       = (id: string) => tree.levelOf(nodes.value, id)
+  const descendantsOf = (id: string) => tree.descendantsOf(nodes.value, id)
 
   /* ---- mutations ---- */
   function newNodeId(): string { return 'n' + (nextId.value++) }

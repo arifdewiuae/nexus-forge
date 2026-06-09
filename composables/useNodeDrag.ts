@@ -31,6 +31,7 @@ export function useNodeDrag(
     if (!dragInfo) return
     const dx = (e.clientX - dragInfo.startX) / zoom.value
     const dy = (e.clientY - dragInfo.startY) / zoom.value
+
     if (!dragInfo.moved && Math.hypot(dx * zoom.value, dy * zoom.value) > 3) {
       dragInfo.moved = true; callbacks.beginDrag()
     }
@@ -39,6 +40,7 @@ export function useNodeDrag(
 
   function onNodeUp() {
     if (!dragInfo) return
+
     callbacks.endDrag(dragInfo.moved); dragInfo = null
     window.removeEventListener('pointermove', onNodeMove)
     window.removeEventListener('pointerup', onNodeUp)

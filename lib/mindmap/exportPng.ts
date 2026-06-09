@@ -1,3 +1,5 @@
+import { DEFAULT_ACCENT } from '~/stores/useSettingsStore'
+
 /**
  * Exports the mind-map SVG to a PNG file.
  * Embeds fonts as base64, inlines CSS variables, and downloads the result.
@@ -13,7 +15,7 @@ export async function exportPng(svgEl: SVGSVGElement, title: string): Promise<vo
     cssVars[prop] = rootStyle.getPropertyValue(prop).trim()
   }
   const ink    = cssVars['--ink']    || '#1f2533'
-  const accent = cssVars['--accent'] || '#c4604a'
+  const accent = cssVars['--accent'] || DEFAULT_ACCENT
 
   const clone = svgEl.cloneNode(true) as SVGSVGElement
   clone.setAttribute('width',  String(w * 2))

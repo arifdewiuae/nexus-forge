@@ -36,6 +36,10 @@ export function underlinePath(w: number, h: number): string {
   return `M ${x0} ${y0} q ${seg * 0.5} -4 ${seg} 1 t ${seg} -1 t ${seg} 1 t ${seg} -1`
 }
 
+/** Hand-drawn double-stroke effect: one clean underlay (jitter 0) + one offset overlay. */
+export const SKETCH_JITTER = 1.2
+
+/** @param j corner jitter in px — 0 for the clean path, SKETCH_JITTER for the sketchy overlay. */
 export function sketchRectPath(x: number, y: number, w: number, h: number, r: number, j: number): string {
   return `M ${x+r+j} ${y-j}
           L ${x+w-r-j} ${y+j}
